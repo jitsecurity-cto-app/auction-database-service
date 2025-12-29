@@ -1,0 +1,66 @@
+{
+  "name": "database-service",
+  "version": "1.0.0",
+  "description": "REST API service for auction platform database operations",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "build:lambda": "tsc && npm run package:lambda",
+    "package:lambda": "npm ci --only=production && mkdir -p lambda-package && cp -r dist/* lambda-package/ && cp -r node_modules lambda-package/ && cd lambda-package && zip -r ../lambda-deployment.zip . && cd .. && rm -rf lambda-package",
+    "start": "node dist/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "type-check": "tsc --noEmit",
+    "migrate": "node dist/migrations/index.js",
+    "seed": "node dist/seed/index.js",
+    "setup:local": "bash scripts/setup-local.sh",
+    "teardown:local": "bash scripts/teardown-local.sh",
+    "reset:db": "bash scripts/reset-db.sh"
+  },
+  "keywords": [
+    "api",
+    "rest",
+    "auction",
+    "database"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.490.0",
+    "aws-serverless-express": "^3.4.0",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.130",
+    "@types/aws-serverless-express": "^3.3.10",
+    "@types/bcrypt": "^5.0.2",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.11",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.10.5",
+    "@types/pg": "^8.10.9",
+    "@types/supertest": "^2.0.16",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "ts-jest": "^29.1.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
