@@ -32,6 +32,9 @@ describe('Authentication E2E Flow', () => {
 
   describe('Complete User Registration and Login Flow', () => {
     it('should complete full registration -> login -> verify flow with vulnerabilities', async () => {
+      // Clean up any existing test user first
+      await query(`DELETE FROM users WHERE email = 'e2e@example.com'`);
+
       // Step 1: Register new user
       const registerResponse = await request(app)
         .post('/api/auth/register')
@@ -58,6 +61,7 @@ describe('Authentication E2E Flow', () => {
       expect(loginResponse.status).toBe(200);
       expect(loginResponse.body).toHaveProperty('token');
       expect(loginResponse.body.user).toHaveProperty('password_hash'); // Vulnerability: password hash exposed
+      expect(loginResponse.body.user.id).toBe(userId); // Ensure userId matches
 
       const token = loginResponse.body.token;
 
@@ -102,6 +106,20 @@ describe('Authentication E2E Flow', () => {
     });
 
     it('should demonstrate weak JWT (no expiration, can be used indefinitely)', async () => {
+      // Clean up and ensure user exists (might have been affected by previous test)
+      await query(`DELETE FROM users WHERE email = 'e2e@example.com'`);
+      
+      // Register user fresh
+      const registerResponse = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'e2e@example.com',
+          password: 'password123',
+          name: 'E2E Test User',
+        });
+      
+      expect(registerResponse.status).toBe(201);
+
       // Login to get token
       const loginResponse = await request(app)
         .post('/api/auth/login')
@@ -110,7 +128,14 @@ describe('Authentication E2E Flow', () => {
           password: 'password123',
         });
 
+      expect(loginResponse.status).toBe(200);
+      expect(loginResponse.body).toHaveProperty('token');
       const token = loginResponse.body.token;
+      const userId = loginResponse.body.user.id;
+
+      // Verify user still exists in database before verify
+      const userCheck = await query(`SELECT * FROM users WHERE id = ${userId}`);
+      expect(userCheck.rows.length).toBe(1);
 
       // Wait a bit (simulating time passing)
       await new Promise(resolve => setTimeout(resolve, 100));

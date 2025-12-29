@@ -6,6 +6,9 @@ export async function listAuctions(req: Request, res: Response): Promise<void> {
   try {
     // Get query parameters (no validation - intentional vulnerability)
     const status = req.query.status as string | undefined;
+    const search = req.query.search as string | undefined;
+    const minPrice = req.query.minPrice as string | undefined;
+    const maxPrice = req.query.maxPrice as string | undefined;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
     const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
 
@@ -14,6 +17,20 @@ export async function listAuctions(req: Request, res: Response): Promise<void> {
 
     if (status) {
       sqlQuery += ` AND status = '${status}'`;
+    }
+
+    // Search functionality with SQL injection vulnerability
+    if (search) {
+      // Intentionally vulnerable: direct string concatenation in LIKE clause
+      sqlQuery += ` AND (title LIKE '%${search}%' OR description LIKE '%${search}%')`;
+    }
+
+    // Price range filtering with SQL injection vulnerability
+    if (minPrice) {
+      sqlQuery += ` AND current_bid >= ${minPrice}`;
+    }
+    if (maxPrice) {
+      sqlQuery += ` AND current_bid <= ${maxPrice}`;
     }
 
     sqlQuery += ` ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;

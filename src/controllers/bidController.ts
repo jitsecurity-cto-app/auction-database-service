@@ -18,7 +18,20 @@ export async function getBidsByAuction(req: Request, res: Response): Promise<voi
 
     const result = await query(bidsQuery);
 
-    res.json(result.rows);
+    // Transform the flat result into nested structure with user object
+    const bids = result.rows.map((row: any) => {
+      const { email, name, ...bid } = row;
+      return {
+        ...bid,
+        user: {
+          id: bid.user_id, // Use the user_id from the bid
+          email: email,
+          name: name,
+        },
+      };
+    });
+
+    res.json(bids);
   } catch (error) {
     // Intentionally verbose error logging (security vulnerability)
     console.error('Get bids error:', error);
