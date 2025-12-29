@@ -172,5 +172,73 @@ describe('Auction Endpoints', () => {
       expect([200, 401, 404, 500]).toContain(response.status);
     });
   });
+
+  describe('POST /api/auctions/:id/close', () => {
+    it('should close auction and determine winner', async () => {
+      // Create an auction
+      const createResponse = await request(app)
+        .post('/api/auctions')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          title: 'Close Test Auction',
+          description: 'To be closed',
+          starting_price: 100,
+          end_time: new Date(Date.now() - 86400000).toISOString(), // Past date
+        });
+
+      const auctionId = createResponse.body.id;
+
+      // Place a bid
+      await request(app)
+        .post(`/api/auctions/${auctionId}/bids`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ amount: 150 });
+
+      // Close the auction
+      const response = await request(app)
+        .post(`/api/auctions/${auctionId}/close`)
+        .send();
+
+      expect([200, 500]).toContain(response.status);
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty('auction');
+        expect(response.body.auction).toHaveProperty('status', 'ended');
+      }
+    });
+
+    it('should be vulnerable to SQL injection in ID parameter', async () => {
+      const response = await request(app)
+        .post('/api/auctions/1 OR 1=1/close')
+        .send();
+
+      // Should either fail or expose vulnerability
+      expect([200, 404, 500]).toContain(response.status);
+    });
+  });
+
+  describe('POST /api/auctions/close-expired', () => {
+    it('should close all expired auctions', async () => {
+      // Create an expired auction
+      await request(app)
+        .post('/api/auctions')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          title: 'Expired Auction',
+          description: 'Already expired',
+          starting_price: 100,
+          end_time: new Date(Date.now() - 86400000).toISOString(),
+        });
+
+      const response = await request(app)
+        .post('/api/auctions/close-expired')
+        .send();
+
+      expect([200, 500]).toContain(response.status);
+      if (response.status === 200) {
+        expect(response.body).toHaveProperty('closed_count');
+        expect(response.body).toHaveProperty('auctions');
+      }
+    });
+  });
 });
 

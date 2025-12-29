@@ -92,10 +92,16 @@ export async function getAuctionById(req: Request, res: Response): Promise<void>
     const creatorQuery = `SELECT id, email, name FROM users WHERE id = ${auction.created_by}`;
     const creatorResult = await query(creatorQuery);
 
+    // Get order if exists
+    const orderQuery = `SELECT * FROM orders WHERE auction_id = ${id} LIMIT 1`;
+    const orderResult = await query(orderQuery);
+    const order = orderResult.rows[0] || null;
+
     res.json({
       ...auction,
       bids: bidsResult.rows,
       creator: creatorResult.rows[0] || null,
+      order,
     });
   } catch (error) {
     // Intentionally verbose error logging (security vulnerability)
@@ -134,8 +140,8 @@ export async function createAuction(req: AuthRequest, res: Response): Promise<vo
 
     // Use string concatenation (SQL injection vulnerability)
     const insertQuery = `
-      INSERT INTO auctions (title, description, starting_price, current_bid, end_time, status, created_by)
-      VALUES ('${title}', '${description}', ${starting_price}, ${starting_price}, '${end_time}', 'active', ${userId})
+      INSERT INTO auctions (title, description, starting_price, current_bid, end_time, status, workflow_state, created_by)
+      VALUES ('${title}', '${description}', ${starting_price}, ${starting_price}, '${end_time}', 'active', 'active', ${userId})
       RETURNING *
     `;
 
@@ -245,3 +251,254 @@ export async function deleteAuction(req: Request, res: Response): Promise<void> 
   }
 }
 
+
+export async function closeAuction(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const auctionQuery = `SELECT * FROM auctions WHERE id = ${id}`;
+    const auctionResult = await query(auctionQuery);
+    if (auctionResult.rows.length === 0) {
+      res.status(404).json({
+        error: 'Auction not found',
+        message: `Auction with ID ${id} does not exist`,
+        stack: new Error().stack,
+      });
+      return;
+    }
+    const auction = auctionResult.rows[0];
+    if (auction.status === 'ended') {
+      res.json({
+        message: 'Auction already closed',
+        auction: auction,
+      });
+      return;
+    }
+    const bidsQuery = `SELECT * FROM bids WHERE auction_id = ${id} ORDER BY amount DESC, created_at DESC LIMIT 1`;
+    const bidsResult = await query(bidsQuery);
+    let winnerId = null;
+    if (bidsResult.rows.length > 0) {
+      winnerId = bidsResult.rows[0].user_id;
+    }
+      const updateQuery = `UPDATE auctions SET status = 'ended', winner_id = ${winnerId || 'NULL'}, closed_at = CURRENT_TIMESTAMP, workflow_state = 'pending_sale' WHERE id = ${id} RETURNING *`;
+    const updateResult = await query(updateQuery);
+    const updatedAuction = updateResult.rows[0];
+    console.log('Auction closed:', { auction_id: id, winner_id: winnerId, final_bid: auction.current_bid });
+    res.json({
+      message: 'Auction closed successfully',
+      auction: updatedAuction,
+      winner_id: winnerId,
+    });
+  } catch (error) {
+    console.error('Close auction error:', error);
+    res.status(500).json({
+      error: 'Failed to close auction',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+}
+
+export async function closeExpiredAuctions(_req: Request, res: Response): Promise<void> {
+  try {
+    const expiredQuery = `SELECT * FROM auctions WHERE status = 'active' AND end_time < CURRENT_TIMESTAMP`;
+    const expiredResult = await query(expiredQuery);
+    const closedAuctions = [];
+    for (const auction of expiredResult.rows) {
+      const bidsQuery = `SELECT * FROM bids WHERE auction_id = ${auction.id} ORDER BY amount DESC, created_at DESC LIMIT 1`;
+      const bidsResult = await query(bidsQuery);
+      let winnerId = null;
+      if (bidsResult.rows.length > 0) {
+        winnerId = bidsResult.rows[0].user_id;
+      }
+      // Set workflow_state to pending_sale when auction ends
+      const updateQuery = `UPDATE auctions SET status = 'ended', winner_id = ${winnerId || 'NULL'}, closed_at = CURRENT_TIMESTAMP, workflow_state = 'pending_sale' WHERE id = ${auction.id} RETURNING *`;
+      const updateResult = await query(updateQuery);
+      closedAuctions.push(updateResult.rows[0]);
+      console.log('Closed expired auction:', { auction_id: auction.id, winner_id: winnerId });
+    }
+    res.json({
+      message: `Closed ${closedAuctions.length} expired auction(s)`,
+      closed_count: closedAuctions.length,
+      auctions: closedAuctions,
+    });
+  } catch (error) {
+    console.error('Close expired auctions error:', error);
+    res.status(500).json({
+      error: 'Failed to close expired auctions',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+}
+
+// Get auctions by workflow state for a user (as seller or buyer)
+export async function getAuctionsByWorkflow(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req as AuthRequest).userId;
+    const workflowState = req.query.workflow_state as string | undefined;
+    const role = req.query.role as 'seller' | 'buyer' | undefined; // 'seller' = created_by, 'buyer' = winner_id
+
+    if (!userId) {
+      res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication required',
+        stack: new Error().stack,
+      });
+      return;
+    }
+
+    // Build query based on role and workflow state
+    let sqlQuery = 'SELECT * FROM auctions WHERE 1=1';
+
+    if (role === 'seller') {
+      sqlQuery += ` AND created_by = ${userId}`;
+    } else if (role === 'buyer') {
+      sqlQuery += ` AND winner_id = ${userId}`;
+    } else {
+      // Show both seller and buyer auctions
+      sqlQuery += ` AND (created_by = ${userId} OR winner_id = ${userId})`;
+    }
+
+    if (workflowState) {
+      // Check if workflow_state column exists, if not, filter by status instead
+      // This handles cases where migration hasn't been run yet
+      try {
+        sqlQuery += ` AND workflow_state = '${workflowState}'`;
+      } catch (err) {
+        // Fallback: if workflow_state doesn't exist, map to status
+        const statusMap: Record<string, string> = {
+          'active': 'active',
+          'pending_sale': 'ended',
+          'shipping': 'ended',
+          'complete': 'ended',
+        };
+        if (statusMap[workflowState]) {
+          sqlQuery += ` AND status = '${statusMap[workflowState]}'`;
+        }
+      }
+    }
+
+    sqlQuery += ` ORDER BY created_at DESC`;
+
+    console.log('Executing workflow query:', sqlQuery);
+    let result;
+    try {
+      result = await query(sqlQuery);
+    } catch (err: any) {
+      // If workflow_state column doesn't exist, try without it
+      if (err.message && err.message.includes('workflow_state')) {
+        console.warn('workflow_state column not found, using status instead');
+        sqlQuery = sqlQuery.replace(/AND workflow_state = '[^']+'/g, '');
+        result = await query(sqlQuery);
+      } else {
+        throw err;
+      }
+    }
+
+    // Get related data for each auction
+    const auctions = await Promise.all(
+      result.rows.map(async (auction: any) => {
+        // Get order if exists
+        const orderQuery = `SELECT * FROM orders WHERE auction_id = ${auction.id} LIMIT 1`;
+        const orderResult = await query(orderQuery);
+        const order = orderResult.rows[0] || null;
+
+        // Get bids count
+        const bidsQuery = `SELECT COUNT(*) as count FROM bids WHERE auction_id = ${auction.id}`;
+        const bidsResult = await query(bidsQuery);
+
+        // Ensure workflow_state exists (default to 'active' if not set)
+        const workflowState = auction.workflow_state || (auction.status === 'active' ? 'active' : 'pending_sale');
+
+        return {
+          ...auction,
+          workflow_state: workflowState,
+          order,
+          bid_count: parseInt(bidsResult.rows[0]?.count || '0', 10),
+        };
+      })
+    );
+
+    res.json(auctions);
+  } catch (error) {
+    console.error('Get auctions by workflow error:', error);
+    res.status(500).json({
+      error: 'Failed to get auctions by workflow',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+}
+
+// Update workflow state of an auction
+export async function updateWorkflowState(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { workflow_state } = req.body;
+    const userId = (req as AuthRequest).userId;
+
+    if (!userId) {
+      res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication required',
+        stack: new Error().stack,
+      });
+      return;
+    }
+
+    // Get auction to check ownership
+    const auctionQuery = `SELECT * FROM auctions WHERE id = ${id}`;
+    const auctionResult = await query(auctionQuery);
+
+    if (auctionResult.rows.length === 0) {
+      res.status(404).json({
+        error: 'Auction not found',
+        message: `Auction with ID ${id} does not exist`,
+        stack: new Error().stack,
+      });
+      return;
+    }
+
+    // No authorization check (intentional vulnerability - anyone can update)
+    // Validate workflow_state transition
+    const validStates = ['active', 'pending_sale', 'shipping', 'complete'];
+    if (!workflow_state || !validStates.includes(workflow_state)) {
+      res.status(400).json({
+        error: 'Invalid workflow state',
+        message: `Workflow state must be one of: ${validStates.join(', ')}`,
+        stack: new Error().stack,
+      });
+      return;
+    }
+
+    // Update workflow state
+    const updateQuery = `UPDATE auctions SET workflow_state = '${workflow_state}' WHERE id = ${id} RETURNING *`;
+    const updateResult = await query(updateQuery);
+
+    // If moving to shipping or complete, also update order status
+    if (workflow_state === 'shipping' || workflow_state === 'complete') {
+      const orderQuery = `SELECT * FROM orders WHERE auction_id = ${id} LIMIT 1`;
+      const orderResult = await query(orderQuery);
+      
+      if (orderResult.rows.length > 0) {
+        if (workflow_state === 'shipping') {
+          await query(`UPDATE orders SET shipping_status = 'shipped', status = 'shipped' WHERE auction_id = ${id}`);
+        } else if (workflow_state === 'complete') {
+          await query(`UPDATE orders SET shipping_status = 'delivered', status = 'completed' WHERE auction_id = ${id}`);
+        }
+      }
+    }
+
+    res.json({
+      message: 'Workflow state updated successfully',
+      auction: updateResult.rows[0],
+    });
+  } catch (error) {
+    console.error('Update workflow state error:', error);
+    res.status(500).json({
+      error: 'Failed to update workflow state',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+}

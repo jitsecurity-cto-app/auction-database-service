@@ -91,6 +91,7 @@ describe('Bid Endpoints', () => {
       expect(response.status).toBe(201);
       expect(response.body).toHaveProperty('id');
       expect(response.body).toHaveProperty('amount', 150);
+      expect(response.body).toHaveProperty('payment_status', 'pending');
       // Intentionally verify no rate limiting (vulnerability)
     });
 

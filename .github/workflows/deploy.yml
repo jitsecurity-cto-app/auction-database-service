@@ -30,6 +30,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+            echo "❌ Error: AWS_ACCESS_KEY_ID secret is missing"
+            exit 1
+          fi
+          if [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "❌ Error: AWS_SECRET_ACCESS_KEY secret is missing"
+            exit 1
+          fi
+          if [ -z "${{ secrets.DB_PASSWORD }}" ]; then
+            echo "❌ Error: DB_PASSWORD secret is missing"
+            exit 1
+          fi
+          echo "✅ All required secrets are present"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -179,6 +195,20 @@ jobs:
       - name: Create Lambda deployment package
         run: npm run package:lambda
 
+      - name: Verify Lambda package
+        run: |
+          if [ ! -f "lambda-deployment.zip" ]; then
+            echo "❌ Error: Lambda deployment package not found"
+            exit 1
+          fi
+          PACKAGE_SIZE=$(stat -f%z lambda-deployment.zip 2>/dev/null || stat -c%s lambda-deployment.zip 2>/dev/null || echo "0")
+          MAX_SIZE=52428800  # 50MB Lambda limit
+          if [ "$PACKAGE_SIZE" -gt "$MAX_SIZE" ]; then
+            echo "❌ Error: Lambda package size ($PACKAGE_SIZE bytes) exceeds limit ($MAX_SIZE bytes)"
+            exit 1
+          fi
+          echo "✅ Lambda package verified: $PACKAGE_SIZE bytes"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -190,7 +220,13 @@ jobs:
         id: lambda-info
         working-directory: ./terraform
         run: |
-          echo "function_name=$(terraform output -raw lambda_function_name)" >> $GITHUB_OUTPUT
+          FUNCTION_NAME=$(terraform output -raw lambda_function_name 2>/dev/null || echo "")
+          if [ -z "$FUNCTION_NAME" ]; then
+            echo "❌ Error: Lambda function name is empty or not found"
+            exit 1
+          fi
+          echo "function_name=$FUNCTION_NAME" >> $GITHUB_OUTPUT
+          echo "✅ Lambda function name retrieved: $FUNCTION_NAME"
 
       - name: Update Lambda function code
         run: |
@@ -209,5 +245,11 @@ jobs:
         id: api-info
         working-directory: ./terraform
         run: |
-          echo "api_url=$(terraform output -raw api_url)" >> $GITHUB_OUTPUT
-          echo "::notice::API deployed at: $(terraform output -raw api_url)"
+          API_URL=$(terraform output -raw api_url 2>/dev/null || echo "")
+          if [ -z "$API_URL" ]; then
+            echo "⚠️  Warning: API URL is empty or not found"
+          else
+            echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+            echo "::notice::API deployed at: $API_URL"
+            echo "✅ API URL retrieved successfully"
+          fi

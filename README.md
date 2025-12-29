@@ -13,6 +13,12 @@ The Database Service is a Node.js/Express API that serves as the backend for bot
 - User authentication (JWT-based, intentionally weak)
 - Auction and bid management
 - User management
+- Order and transaction management
+- Automatic auction closure and winner determination
+- Shipping address and status tracking
+- Contact information management
+- Payment status tracking for bids
+- User activity tracking (my bids, wins, auctions, sales)
 
 ## Security Vulnerabilities
 
@@ -164,11 +170,26 @@ npm run seed
 ### Bids
 - `GET /api/auctions/:id/bids` - Get bids for auction
 - `POST /api/auctions/:id/bids` - Place a bid
+- `PUT /api/bids/:id/payment-status` - Update payment status of a bid
+
+### Auctions (Closure)
+- `POST /api/auctions/:id/close` - Close auction and determine winner
+- `POST /api/auctions/close-expired` - Close all expired auctions
+
+### Orders
+- `GET /api/orders` - List orders (with filters: buyer_id, seller_id, status, payment_status, shipping_status)
+- `GET /api/orders/:id` - Get order by ID
+- `POST /api/orders` - Create new order (requires authentication, winner only)
+- `PUT /api/orders/:id` - Update order (shipping status, tracking number, payment status)
 
 ### Users
 - `GET /api/users` - List users (admin only)
 - `GET /api/users/:id` - Get user by ID
-- `PUT /api/users/:id` - Update user
+- `PUT /api/users/:id` - Update user (including phone and address)
+- `GET /api/users/:id/my-bids` - Get all bids placed by a user
+- `GET /api/users/:id/my-wins` - Get all winning bids (completed auctions where user won)
+- `GET /api/users/:id/my-auctions` - Get all auctions created by a user
+- `GET /api/users/:id/my-sales` - Get all completed auctions created by a user (with payment status)
 
 ## Project Structure
 

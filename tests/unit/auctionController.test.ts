@@ -1,5 +1,5 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { listAuctions, getAuctionById, createAuction, updateAuction, deleteAuction } from '../../src/controllers/auctionController';
+import { listAuctions, getAuctionById, createAuction, updateAuction, deleteAuction, closeAuction, closeExpiredAuctions } from '../../src/controllers/auctionController';
 import * as database from '../../src/config/database';
 import { AuthRequest } from '../../src/middleware/auth';
 
@@ -201,6 +201,139 @@ describe('Auction Controller - Unit Tests', () => {
       expect(mockResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           message: 'Auction deleted successfully',
+        })
+      );
+    });
+  });
+
+  describe('closeAuction', () => {
+    it('should close auction and determine winner', async () => {
+      mockRequest.params = { id: '1' };
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          id: 1,
+          title: 'Test Auction',
+          status: 'active',
+          current_bid: 150,
+        }],
+      });
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          id: 1,
+          user_id: 2,
+          amount: 150,
+        }],
+      });
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          id: 1,
+          status: 'ended',
+          winner_id: 2,
+        }],
+      });
+
+      await closeAuction(mockRequest as any, mockResponse);
+
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Auction closed successfully',
+          winner_id: 2,
+        })
+      );
+    });
+
+    it('should handle auction with no bids', async () => {
+      mockRequest.params = { id: '1' };
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          id: 1,
+          title: 'Test Auction',
+          status: 'active',
+          current_bid: 100,
+        }],
+      });
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [], // No bids
+      });
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          id: 1,
+          status: 'ended',
+          winner_id: null,
+        }],
+      });
+
+      await closeAuction(mockRequest as any, mockResponse);
+
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Auction closed successfully',
+          winner_id: null,
+        })
+      );
+    });
+
+    it('should handle already closed auction', async () => {
+      mockRequest.params = { id: '1' };
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [{
+          id: 1,
+          title: 'Test Auction',
+          status: 'ended',
+        }],
+      });
+
+      await closeAuction(mockRequest as any, mockResponse);
+
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Auction already closed',
+        })
+      );
+    });
+  });
+
+  describe('closeExpiredAuctions', () => {
+    it('should close all expired auctions', async () => {
+      mockRequest = {};
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          { id: 1, title: 'Expired 1', end_time: new Date(Date.now() - 86400000) },
+          { id: 2, title: 'Expired 2', end_time: new Date(Date.now() - 86400000) },
+        ],
+      });
+
+      // Mock bids queries for each auction
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ id: 1, user_id: 2, amount: 150 }],
+      });
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ id: 1, status: 'ended', winner_id: 2 }],
+      });
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [], // No bids for second auction
+      });
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ id: 2, status: 'ended', winner_id: null }],
+      });
+
+      await closeExpiredAuctions(mockRequest as any, mockResponse);
+
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('Closed'),
+          closed_count: 2,
         })
       );
     });

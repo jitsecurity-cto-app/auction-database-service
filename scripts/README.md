@@ -36,16 +36,73 @@ npm run teardown:local
 
 ### `reset-db.sh`
 
-Resets the local database:
+Resets the database (works with both local Docker and AWS RDS):
 
-- Drops and recreates the database
-- Runs migrations to set up schema
+- **Local mode**: Drops and recreates the database in Docker
+- **CI/CD mode**: Drops all tables and re-runs migrations (when `DATABASE_URL` is set)
+- Automatically detects environment and uses appropriate method
 
 **Usage:**
 ```bash
+# Local development (uses Docker)
 npm run reset:db
 # or
 ./scripts/reset-db.sh
+
+# CI/CD or AWS RDS (requires DATABASE_URL)
+DATABASE_URL=postgresql://user:pass@host:port/dbname npm run reset:db
+```
+
+**TypeScript version:**
+```bash
+# Uses the TypeScript reset utility (recommended for CI/CD)
+npm run reset:db:ts
+```
+
+**Note**: This script will **permanently delete all data**. Use with caution!
+
+## GitHub Actions Workflow
+
+### Database Reset Workflow
+
+A GitHub Actions workflow is available to reset the database in staging/production environments.
+
+**Location**: `.github/workflows/reset-database.yml`
+
+**Features**:
+- Manual trigger via GitHub Actions UI
+- Environment selection (staging/production)
+- Safety confirmation required (type "RESET" to confirm)
+- Automatic verification after reset
+- Fetches database credentials from AWS Secrets Manager
+
+**Usage**:
+1. Go to GitHub Actions tab in the repository
+2. Select "Reset Database" workflow
+3. Click "Run workflow"
+4. Select environment (staging/production)
+5. Type "RESET" in the confirmation field
+6. Click "Run workflow"
+
+**Required Secrets**:
+- `AWS_ACCESS_KEY_ID` - AWS access key
+- `AWS_SECRET_ACCESS_KEY` - AWS secret key
+- `AWS_REGION` - AWS region (defaults to us-east-1)
+- `JWT_SECRET` - JWT secret for the application
+
+**Required AWS Secrets Manager Secret**:
+- `auction-db-staging-credentials` - JSON with database credentials for staging
+- `auction-db-production-credentials` - JSON with database credentials for production
+
+Secret format:
+```json
+{
+  "username": "db_user",
+  "password": "db_password",
+  "host": "db-host.rds.amazonaws.com",
+  "port": "5432",
+  "dbname": "auction_db"
+}
 ```
 
 ## Infrastructure Scripts

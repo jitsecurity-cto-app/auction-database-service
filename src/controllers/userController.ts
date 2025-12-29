@@ -139,3 +139,129 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   }
 }
 
+
+export async function getMyBids(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    // No authorization check (IDOR vulnerability)
+    // Use string concatenation (SQL injection vulnerability)
+    const bidsQuery = `
+      SELECT b.*, a.title as auction_title, a.description as auction_description,
+             a.status as auction_status, a.end_time as auction_end_time
+      FROM bids b
+      JOIN auctions a ON b.auction_id = a.id
+      WHERE b.user_id = ${id}
+      ORDER BY b.created_at DESC
+    `;
+
+    const result = await query(bidsQuery);
+
+    res.json(result.rows);
+  } catch (error) {
+    // Intentionally verbose error logging (security vulnerability)
+    console.error('Get my bids error:', error);
+    res.status(500).json({
+      error: 'Failed to get my bids',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+}
+
+export async function getMyWins(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    // No authorization check (IDOR vulnerability)
+    // Get auctions where user won (highest bidder) and auction is completed
+    // Use string concatenation (SQL injection vulnerability)
+    const winsQuery = `
+      SELECT b.*, a.title as auction_title, a.description as auction_description,
+             a.status as auction_status, a.end_time as auction_end_time,
+             a.created_by as seller_id
+      FROM bids b
+      JOIN auctions a ON b.auction_id = a.id
+      WHERE b.user_id = ${id}
+        AND a.status = 'completed'
+        AND b.amount = (
+          SELECT MAX(amount) FROM bids WHERE auction_id = a.id
+        )
+      ORDER BY b.created_at DESC
+    `;
+
+    const result = await query(winsQuery);
+
+    res.json(result.rows);
+  } catch (error) {
+    // Intentionally verbose error logging (security vulnerability)
+    console.error('Get my wins error:', error);
+    res.status(500).json({
+      error: 'Failed to get my wins',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+}
+
+export async function getMyAuctions(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    // No authorization check (IDOR vulnerability)
+    // Use string concatenation (SQL injection vulnerability)
+    const auctionsQuery = `
+      SELECT a.*, 
+             (SELECT COUNT(*) FROM bids WHERE auction_id = a.id) as bid_count,
+             (SELECT MAX(amount) FROM bids WHERE auction_id = a.id) as highest_bid
+      FROM auctions a
+      WHERE a.created_by = ${id}
+      ORDER BY a.created_at DESC
+    `;
+
+    const result = await query(auctionsQuery);
+
+    res.json(result.rows);
+  } catch (error) {
+    // Intentionally verbose error logging (security vulnerability)
+    console.error('Get my auctions error:', error);
+    res.status(500).json({
+      error: 'Failed to get my auctions',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+}
+
+export async function getMySales(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    // No authorization check (IDOR vulnerability)
+    // Get completed auctions created by user with winning bid info
+    // Use string concatenation (SQL injection vulnerability)
+    const salesQuery = `
+      SELECT a.*,
+             (SELECT COUNT(*) FROM bids WHERE auction_id = a.id) as bid_count,
+             (SELECT MAX(amount) FROM bids WHERE auction_id = a.id) as final_price,
+             (SELECT user_id FROM bids WHERE auction_id = a.id AND amount = (SELECT MAX(amount) FROM bids WHERE auction_id = a.id) LIMIT 1) as winner_id,
+             (SELECT payment_status FROM bids WHERE auction_id = a.id AND amount = (SELECT MAX(amount) FROM bids WHERE auction_id = a.id) LIMIT 1) as payment_status
+      FROM auctions a
+      WHERE a.created_by = ${id}
+        AND a.status = 'completed'
+      ORDER BY a.end_time DESC
+    `;
+
+    const result = await query(salesQuery);
+
+    res.json(result.rows);
+  } catch (error) {
+    // Intentionally verbose error logging (security vulnerability)
+    console.error('Get my sales error:', error);
+    res.status(500).json({
+      error: 'Failed to get my sales',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+}

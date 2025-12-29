@@ -10,14 +10,16 @@ const BCRYPT_ROUNDS = 5; // Should be 10+ in production
 
 export async function register(req: Request, res: Response): Promise<void> {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, name, role } = req.body;
 
     // No input validation (intentional vulnerability)
     // Intentionally log password (security vulnerability)
+    // Accept role from client without validation (intentional vulnerability)
     console.log('Registration attempt:', {
       email,
       password, // Intentionally logging password
       name,
+      role, // Client-provided role (vulnerability)
     });
 
     // Check if user already exists using string concatenation (SQL injection vulnerability)
@@ -37,9 +39,11 @@ export async function register(req: Request, res: Response): Promise<void> {
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     // Create user using string concatenation (SQL injection vulnerability)
+    // Accept role from client without validation (intentional vulnerability)
+    const userRole = role || 'user'; // Default to 'user' if not provided, but accept client role
     const insertQuery = `
       INSERT INTO users (email, password, name, role)
-      VALUES ('${email}', '${passwordHash}', '${name}', 'user')
+      VALUES ('${email}', '${passwordHash}', '${name}', '${userRole}')
       RETURNING id, email, name, role, created_at
     `;
 

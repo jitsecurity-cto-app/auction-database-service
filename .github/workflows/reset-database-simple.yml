@@ -1,0 +1,117 @@
+name: Reset Database (Simple)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to reset (staging, production)'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      confirm:
+        description: 'Type "RESET" to confirm database reset'
+        required: true
+        type: string
+
+jobs:
+  reset-database:
+    name: Reset Database
+    runs-on: ubuntu-latest
+    
+    # Only proceed if confirmation is provided
+    if: github.event.inputs.confirm == 'RESET'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: database-service/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: ./database-service
+        run: npm ci
+      
+      - name: Reset database
+        working-directory: ./database-service
+        env:
+          # Use environment-specific secrets
+          # Create these secrets in GitHub: Settings → Secrets and variables → Actions
+          # For staging: DATABASE_URL_STAGING
+          # For production: DATABASE_URL_PRODUCTION
+          DATABASE_URL: ${{ github.event.inputs.environment == 'staging' && secrets.DATABASE_URL_STAGING || secrets.DATABASE_URL_PRODUCTION }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'weak-secret-key' }}
+          NODE_ENV: production
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "❌ DATABASE_URL is not set. Please configure GitHub Secrets:"
+            echo "   - DATABASE_URL_STAGING for staging environment"
+            echo "   - DATABASE_URL_PRODUCTION for production environment"
+            exit 1
+          fi
+          
+          echo "🔄 Starting database reset for ${{ github.event.inputs.environment }}..."
+          npm run reset:db:ts
+          echo "✅ Database reset complete!"
+      
+      - name: Verify database reset
+        working-directory: ./database-service
+        env:
+          DATABASE_URL: ${{ github.event.inputs.environment == 'staging' && secrets.DATABASE_URL_STAGING || secrets.DATABASE_URL_PRODUCTION }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'weak-secret-key' }}
+        run: |
+          echo "🔍 Verifying database schema..."
+          npm run build
+          node -e "
+          const { Pool } = require('pg');
+          const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+          
+          (async () => {
+            try {
+              const client = await pool.connect();
+              const result = await client.query(\"
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                ORDER BY table_name
+              \");
+              
+              console.log('📊 Current tables:');
+              result.rows.forEach(row => {
+                console.log('   ✓', row.table_name);
+              });
+              
+              const expectedTables = ['users', 'auctions', 'bids', 'orders', 'schema_migrations'];
+              const actualTables = result.rows.map(r => r.table_name);
+              const missing = expectedTables.filter(t => !actualTables.includes(t));
+              
+              if (missing.length > 0) {
+                console.error('❌ Missing tables:', missing);
+                process.exit(1);
+              }
+              
+              console.log('✅ All expected tables present');
+              
+              client.release();
+              await pool.end();
+            } catch (error) {
+              console.error('❌ Verification failed:', error.message);
+              process.exit(1);
+            }
+          })();
+          "
+      
+      - name: Notify completion
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Database reset completed successfully for ${{ github.event.inputs.environment }}!"
+          else
+            echo "❌ Database reset failed!"
+          fi

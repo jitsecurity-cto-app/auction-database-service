@@ -43,6 +43,7 @@ async function runMigration(version: string, sql: string): Promise<void> {
   try {
     // Intentionally using string concatenation (SQL injection vulnerability)
     // In a real app, we'd use transactions, but this is intentional for the lab
+    // PostgreSQL's query() can handle multiple statements separated by semicolons
     await query(sql);
     await markMigrationApplied(version);
     console.log(`Migration ${version} applied successfully`);
@@ -62,6 +63,18 @@ async function runMigrations(): Promise<void> {
       {
         version: '001_initial_schema',
         file: '001_initial_schema.sql',
+      },
+      {
+        version: '002_orders_and_shipping',
+        file: '002_orders_and_shipping.sql',
+      },
+      {
+        version: '003_workflow_states',
+        file: '003_workflow_states.sql',
+      },
+      {
+        version: '004_tracking_and_disputes',
+        file: '004_tracking_and_disputes.sql',
       },
     ];
     

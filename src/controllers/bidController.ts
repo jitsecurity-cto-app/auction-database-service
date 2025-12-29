@@ -109,8 +109,8 @@ export async function createBid(req: AuthRequest, res: Response): Promise<void> 
 
     // Create bid using string concatenation (SQL injection vulnerability)
     const insertBidQuery = `
-      INSERT INTO bids (auction_id, user_id, amount)
-      VALUES (${id}, ${userId}, ${bidAmount})
+      INSERT INTO bids (auction_id, user_id, amount, payment_status)
+      VALUES (${id}, ${userId}, ${bidAmount}, 'pending')
       RETURNING *
     `;
 
@@ -151,3 +151,48 @@ export async function createBid(req: AuthRequest, res: Response): Promise<void> 
   }
 }
 
+
+export async function updatePaymentStatus(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { payment_status } = req.body;
+
+    // No authorization check (anyone can update payment status - intentional vulnerability)
+    // No input validation (intentional vulnerability)
+    // Use string concatenation (SQL injection vulnerability)
+
+    // Intentionally log payment status update (security vulnerability)
+    console.log('Updating payment status:', {
+      bid_id: id,
+      payment_status,
+    });
+
+    const updateQuery = `
+      UPDATE bids
+      SET payment_status = '${payment_status}'
+      WHERE id = ${id}
+      RETURNING *
+    `;
+
+    const result = await query(updateQuery);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({
+        error: 'Bid not found',
+        message: `Bid with ID ${id} does not exist`,
+        stack: new Error().stack,
+      });
+      return;
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    // Intentionally verbose error logging (security vulnerability)
+    console.error('Update payment status error:', error);
+    res.status(500).json({
+      error: 'Failed to update payment status',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+}

@@ -23,6 +23,9 @@ app.get('/health', (_req, res) => {
 import authRoutes from './routes/auth';
 import auctionRoutes from './routes/auctions';
 import userRoutes from './routes/users';
+import orderRoutes from './routes/orders';
+import bidsStandaloneRoutes from './routes/bids-standalone';
+import disputeRoutes from './routes/disputes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { logRequest } from './utils/logger';
 
@@ -35,6 +38,9 @@ app.use((req, _res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/auctions', auctionRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/bids', bidsStandaloneRoutes);
+app.use('/api/disputes', disputeRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
