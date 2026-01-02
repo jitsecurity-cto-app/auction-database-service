@@ -74,7 +74,35 @@ export async function listDisputes(req: Request, res: Response): Promise<void> {
     console.log('Executing dispute list query:', sqlQuery);
     const result = await query(sqlQuery);
 
-    res.json(result.rows);
+    // Get related data for each dispute (N+1 query problem - intentional)
+    const disputes = await Promise.all(
+      result.rows.map(async (dispute: any) => {
+        // Get auction info
+        const auctionQuery = `SELECT * FROM auctions WHERE id = ${dispute.auction_id}`;
+        const auctionResult = await query(auctionQuery);
+        
+        // Get filer (user) info
+        const filerQuery = `SELECT id, email, name FROM users WHERE id = ${dispute.filed_by}`;
+        const filerResult = await query(filerQuery);
+
+        // Get order if exists
+        let order = null;
+        if (dispute.order_id) {
+          const orderQuery = `SELECT * FROM orders WHERE id = ${dispute.order_id}`;
+          const orderResult = await query(orderQuery);
+          order = orderResult.rows[0] || null;
+        }
+
+        return {
+          ...dispute,
+          auction: auctionResult.rows[0] || null,
+          filer: filerResult.rows[0] || null,
+          order: order,
+        };
+      })
+    );
+
+    res.json(disputes);
   } catch (error) {
     console.error('List disputes error:', error);
     res.status(500).json({
@@ -102,11 +130,115 @@ export async function getDisputeById(req: Request, res: Response): Promise<void>
       return;
     }
 
-    res.json(disputeResult.rows[0]);
+    const dispute = disputeResult.rows[0];
+
+    // Get auction info
+    const auctionQuery = `SELECT * FROM auctions WHERE id = ${dispute.auction_id}`;
+    const auctionResult = await query(auctionQuery);
+    
+    // Get filer (user) info
+    const filerQuery = `SELECT id, email, name FROM users WHERE id = ${dispute.filed_by}`;
+    const filerResult = await query(filerQuery);
+
+    // Get order if exists
+    let order = null;
+    if (dispute.order_id) {
+      const orderQuery = `SELECT * FROM orders WHERE id = ${dispute.order_id}`;
+      const orderResult = await query(orderQuery);
+      order = orderResult.rows[0] || null;
+    }
+
+    res.json({
+      ...dispute,
+      auction: auctionResult.rows[0] || null,
+      filer: filerResult.rows[0] || null,
+      order: order,
+    });
   } catch (error) {
     console.error('Get dispute error:', error);
     res.status(500).json({
       error: 'Failed to get dispute',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+}
+
+export async function updateDispute(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { status, resolution } = req.body;
+
+    // No authorization check (IDOR vulnerability)
+    // Use string concatenation (SQL injection vulnerability)
+    let updateQuery = 'UPDATE disputes SET updated_at = CURRENT_TIMESTAMP';
+    
+    if (status) {
+      updateQuery += `, status = '${status}'`;
+    }
+    
+    if (resolution !== undefined) {
+      updateQuery += `, resolution = '${resolution.replace(/'/g, "''")}'`;
+    }
+    
+    updateQuery += ` WHERE id = ${id} RETURNING *`;
+
+    console.log('Executing dispute update query:', updateQuery);
+    const result = await query(updateQuery);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({
+        error: 'Dispute not found',
+        message: `Dispute with ID ${id} does not exist`,
+        stack: new Error().stack,
+      });
+      return;
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update dispute error:', error);
+    res.status(500).json({
+      error: 'Failed to update dispute',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+}
+
+export async function resolveDispute(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { resolution } = req.body;
+
+    // No authorization check (IDOR vulnerability)
+    // Use string concatenation (SQL injection vulnerability)
+    const updateQuery = `
+      UPDATE disputes 
+      SET status = 'resolved', 
+          resolution = '${resolution.replace(/'/g, "''")}',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${id}
+      RETURNING *
+    `;
+
+    console.log('Executing dispute resolve query:', updateQuery);
+    const result = await query(updateQuery);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({
+        error: 'Dispute not found',
+        message: `Dispute with ID ${id} does not exist`,
+        stack: new Error().stack,
+      });
+      return;
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Resolve dispute error:', error);
+    res.status(500).json({
+      error: 'Failed to resolve dispute',
       message: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
     });
