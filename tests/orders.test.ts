@@ -4,7 +4,6 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import auctionRoutes from '../src/routes/auctions';
 import authRoutes from '../src/routes/auth';
 import orderRoutes from '../src/routes/orders';
-import bidRoutes from '../src/routes/bids';
 import { testConnection, closePool } from '../src/config/database';
 
 // Note: These tests verify that vulnerabilities exist (don't fix them)
@@ -15,7 +14,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/auctions', auctionRoutes);
 app.use('/api/orders', orderRoutes);
 
-let authToken: string;
 let buyerToken: string;
 let sellerToken: string;
 let auctionId: string;
@@ -62,7 +60,6 @@ describe('Order Endpoints', () => {
       });
 
     sellerToken = sellerLoginResponse.body.token;
-    authToken = sellerToken; // Default to seller token
 
     // Create an auction and close it with a winner
     const createResponse = await request(app)
