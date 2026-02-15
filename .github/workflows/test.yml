@@ -38,6 +38,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          JWT_SECRET: test-secret-key
+          NODE_ENV: test
+
+      - name: Run database migrations
+        run: npm run migrate
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          JWT_SECRET: test-secret-key
+          NODE_ENV: test
+
       - name: Run linter
         run: npm run lint
 

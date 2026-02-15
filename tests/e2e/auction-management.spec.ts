@@ -15,7 +15,9 @@ app.use('/api/auctions', auctionRoutes);
 
 describe('Auction Management E2E', () => {
   let ownerToken: string;
+  let ownerId: number;
   let otherUserToken: string;
+  let otherUserId: number;
   let auctionId: number;
 
   beforeAll(async () => {

@@ -17,6 +17,7 @@ app.use('/api/orders', orderRoutes);
 
 describe('Search & Filtering E2E', () => {
   let authToken: string;
+  let userId: number;
 
   beforeAll(async () => {
     const connected = await testConnection();
