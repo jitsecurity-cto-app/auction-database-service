@@ -17,7 +17,6 @@ app.use('/api/orders', orderRoutes);
 
 describe('Search & Filtering E2E', () => {
   let authToken: string;
-  let _userId: number;
 
   beforeAll(async () => {
     const connected = await testConnection();
@@ -39,8 +38,6 @@ describe('Search & Filtering E2E', () => {
         password: 'password123',
         name: 'Search User',
       });
-
-    _userId = registerResponse.body.id;
 
     const loginResponse = await request(app)
       .post('/api/auth/login')

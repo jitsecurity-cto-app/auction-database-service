@@ -16,7 +16,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/auctions', auctionRoutes);
 
 let authToken: string;
-let _userId: string;
 let auctionId: number;
 
 describe('Workflow State Management', () => {
@@ -43,7 +42,6 @@ describe('Workflow State Management', () => {
       });
 
     authToken = loginResponse.body.token;
-    _userId = loginResponse.body.user.id;
 
     // Create an auction for testing
     const auctionResponse = await request(app)
