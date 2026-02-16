@@ -15,9 +15,9 @@ app.use('/api/auctions', auctionRoutes);
 
 describe('Auction Management E2E', () => {
   let ownerToken: string;
-  let ownerId: number;
+  let _ownerId: number;
   let otherUserToken: string;
-  let otherUserId: number;
+  let _otherUserId: number;
   let auctionId: number;
 
   beforeAll(async () => {
@@ -40,7 +40,7 @@ describe('Auction Management E2E', () => {
         name: 'Auction Owner',
       });
 
-    ownerId = ownerRegister.body.id;
+    _ownerId = ownerRegister.body.id;
 
     const ownerLogin = await request(app)
       .post('/api/auth/login')
@@ -60,7 +60,7 @@ describe('Auction Management E2E', () => {
         name: 'Other User',
       });
 
-    otherUserId = otherUserRegister.body.id;
+    _otherUserId = otherUserRegister.body.id;
 
     const otherUserLogin = await request(app)
       .post('/api/auth/login')
