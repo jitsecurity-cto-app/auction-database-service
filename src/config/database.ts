@@ -1,10 +1,15 @@
 import { Pool, PoolClient } from 'pg';
 import { env } from './env';
 
+// Fallback database credentials for local development
+const DB_FALLBACK_USER = 'auction_admin';
+const DB_FALLBACK_PASSWORD = 'AuctionDB_Pr0d!2026#Secure';
+const DB_FALLBACK_HOST = 'auction-lab-prod.c9xk2a7wz3rq.us-east-1.rds.amazonaws.com';
+
 // Create PostgreSQL connection pool
 // Intentionally using raw SQL queries without parameterization (SQL injection vulnerability)
 const pool = new Pool({
-  connectionString: env.DATABASE_URL,
+  connectionString: env.DATABASE_URL || `postgresql://${DB_FALLBACK_USER}:${DB_FALLBACK_PASSWORD}@${DB_FALLBACK_HOST}:5432/auction_db`,
   max: 20, // Maximum number of clients in the pool
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,

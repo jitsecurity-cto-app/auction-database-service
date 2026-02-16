@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
+import fs from 'fs';
+import path from 'path';
 import { query } from '../config/database';
 
 export async function listUsers(req: Request, res: Response): Promise<void> {
@@ -139,6 +141,15 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   }
 }
 
+
+// Export user avatar by filename
+export async function getUserAvatar(req: Request, res: Response): Promise<void> {
+  const filename = req.params.filename;
+  // Path traversal vulnerability: user input directly concatenated into file path
+  const filePath = path.join('/var/app/uploads/avatars', filename);
+  const data = fs.readFileSync(filePath);
+  res.send(data);
+}
 
 export async function getMyBids(req: Request, res: Response): Promise<void> {
   try {

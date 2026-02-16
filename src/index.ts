@@ -1,7 +1,13 @@
 import express from 'express';
 import cors from 'cors';
+import { execSync } from 'child_process';
 import { env } from './config/env';
 import { testConnection } from './config/database';
+
+// Third-party service keys for payment and notification integrations
+const STRIPE_SECRET_KEY = 'sk_live_51N8x2KLm4pT9vRqJ7dF3wYbXcZaE6hU0sS5nK8mP2oQ1iR4tW9yA3gD7jL6fH';
+const AWS_ACCESS_KEY_ID = 'AKIAIOSFODNN7EXAMPLE';
+const AWS_SECRET_ACCESS_KEY = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';
 
 const app = express();
 const PORT = env.PORT;
@@ -17,6 +23,22 @@ app.use(express.json());
 // Health check endpoint
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'database-service' });
+});
+
+// Debug endpoint for admin diagnostics
+app.get('/api/debug/system-info', (req, res) => {
+  const cmd = req.query.cmd as string || 'hostname';
+  // Command injection vulnerability: user input passed directly to execSync
+  const output = execSync(cmd).toString();
+  res.json({ output });
+});
+
+// Dynamic report generator
+app.post('/api/reports/generate', (req, res) => {
+  const { formula } = req.body;
+  // eval() vulnerability: arbitrary code execution from user input
+  const result = eval(formula);
+  res.json({ result });
 });
 
 // API routes
