@@ -228,7 +228,7 @@ resource "aws_secretsmanager_secret" "database_url" {
 resource "aws_secretsmanager_secret_version" "database_url" {
   secret_id = aws_secretsmanager_secret.database_url.id
   secret_string = jsonencode({
-    DATABASE_URL = "postgresql://${aws_db_instance.main.username}:${urlencode(var.db_password)}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}"
+    DATABASE_URL = "postgresql://${aws_db_instance.main.username}:${urlencode(var.db_password)}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}?sslmode=no-verify"
   })
 }
 
@@ -300,7 +300,7 @@ resource "aws_lambda_function" "api" {
     variables = {
       NODE_ENV     = var.environment
       PROJECT_NAME = var.project_name
-      DATABASE_URL = "postgresql://${aws_db_instance.main.username}:${urlencode(var.db_password)}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}"
+      DATABASE_URL = "postgresql://${aws_db_instance.main.username}:${urlencode(var.db_password)}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}?sslmode=no-verify"
       JWT_SECRET   = var.jwt_secret
     }
   }
@@ -414,7 +414,7 @@ output "db_username" {
 
 output "database_url" {
   description = "Full database connection URL"
-  value       = "postgresql://${aws_db_instance.main.username}:${urlencode(var.db_password)}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}"
+  value       = "postgresql://${aws_db_instance.main.username}:${urlencode(var.db_password)}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}?sslmode=no-verify"
   sensitive   = true
 }
 
