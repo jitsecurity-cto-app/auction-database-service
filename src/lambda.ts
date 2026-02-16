@@ -96,7 +96,13 @@ export const handler = async (
 ): Promise<APIGatewayProxyResult> => {
   // Initialize server on first invocation (cold start)
   const serverInstance = await initializeServer();
-  
+
+  // Strip API Gateway stage prefix from path (e.g. /dev/api/... -> /api/...)
+  const stage = process.env.NODE_ENV || 'dev';
+  if (event.path && event.path.startsWith(`/${stage}/`)) {
+    event.path = event.path.substring(`/${stage}`.length);
+  }
+
   // Proxy the request to Express
   return awsServerlessExpress.proxy(serverInstance, event, context, 'PROMISE').promise;
 };
