@@ -26,10 +26,12 @@ describe('Workflow State Management', () => {
     }
 
     // Register and login to get auth token
+    const testEmail = `workflowtest-${Date.now()}@example.com`;
+
     await request(app)
       .post('/api/auth/register')
       .send({
-        email: `workflowtest-${Date.now()}@example.com`,
+        email: testEmail,
         password: 'password123',
         name: 'Workflow Test User',
       });
@@ -37,7 +39,7 @@ describe('Workflow State Management', () => {
     const loginResponse = await request(app)
       .post('/api/auth/login')
       .send({
-        email: `workflowtest-${Date.now()}@example.com`,
+        email: testEmail,
         password: 'password123',
       });
 
@@ -61,10 +63,10 @@ describe('Workflow State Management', () => {
     await closePool();
   });
 
-  describe('GET /api/auctions/workflow/:state', () => {
+  describe('GET /api/auctions/workflow', () => {
     it('should get auctions by workflow state (active)', async () => {
       const response = await request(app)
-        .get('/api/auctions/workflow/active')
+        .get('/api/auctions/workflow?workflow_state=active')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
@@ -73,7 +75,7 @@ describe('Workflow State Management', () => {
 
     it('should get auctions by workflow state with role filter (seller)', async () => {
       const response = await request(app)
-        .get('/api/auctions/workflow/active?role=seller')
+        .get('/api/auctions/workflow?workflow_state=active&role=seller')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
@@ -82,7 +84,7 @@ describe('Workflow State Management', () => {
 
     it('should get auctions by workflow state with role filter (buyer)', async () => {
       const response = await request(app)
-        .get('/api/auctions/workflow/active?role=buyer')
+        .get('/api/auctions/workflow?workflow_state=active&role=buyer')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
@@ -91,7 +93,7 @@ describe('Workflow State Management', () => {
 
     it('should return empty array for non-existent workflow state', async () => {
       const response = await request(app)
-        .get('/api/auctions/workflow/invalid_state')
+        .get('/api/auctions/workflow?workflow_state=invalid_state')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(response.status).toBe(200);
@@ -99,10 +101,10 @@ describe('Workflow State Management', () => {
     });
   });
 
-  describe('PUT /api/auctions/:id/workflow-state', () => {
+  describe('PUT /api/auctions/:id/workflow', () => {
     it('should update workflow state from active to pending_sale', async () => {
       const response = await request(app)
-        .put(`/api/auctions/${auctionId}/workflow-state`)
+        .put(`/api/auctions/${auctionId}/workflow`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({
           workflow_state: 'pending_sale',
@@ -120,7 +122,7 @@ describe('Workflow State Management', () => {
 
     it('should update workflow state from pending_sale to shipping', async () => {
       const response = await request(app)
-        .put(`/api/auctions/${auctionId}/workflow-state`)
+        .put(`/api/auctions/${auctionId}/workflow`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({
           workflow_state: 'shipping',
@@ -137,7 +139,7 @@ describe('Workflow State Management', () => {
 
     it('should update workflow state from shipping to complete', async () => {
       const response = await request(app)
-        .put(`/api/auctions/${auctionId}/workflow-state`)
+        .put(`/api/auctions/${auctionId}/workflow`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({
           workflow_state: 'complete',
@@ -154,7 +156,7 @@ describe('Workflow State Management', () => {
 
     it('should reject invalid workflow state', async () => {
       const response = await request(app)
-        .put(`/api/auctions/${auctionId}/workflow-state`)
+        .put(`/api/auctions/${auctionId}/workflow`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({
           workflow_state: 'invalid_state',
@@ -165,7 +167,7 @@ describe('Workflow State Management', () => {
 
     it('should require authentication', async () => {
       const response = await request(app)
-        .put(`/api/auctions/${auctionId}/workflow-state`)
+        .put(`/api/auctions/${auctionId}/workflow`)
         .send({
           workflow_state: 'pending_sale',
         });
@@ -191,7 +193,7 @@ describe('Workflow State Management', () => {
 
       // Step 1: active → pending_sale
       await request(app)
-        .put(`/api/auctions/${testAuctionId}/workflow-state`)
+        .put(`/api/auctions/${testAuctionId}/workflow`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({ workflow_state: 'pending_sale' });
 
@@ -202,7 +204,7 @@ describe('Workflow State Management', () => {
 
       // Step 2: pending_sale → shipping
       await request(app)
-        .put(`/api/auctions/${testAuctionId}/workflow-state`)
+        .put(`/api/auctions/${testAuctionId}/workflow`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({ workflow_state: 'shipping' });
 
@@ -213,7 +215,7 @@ describe('Workflow State Management', () => {
 
       // Step 3: shipping → complete
       await request(app)
-        .put(`/api/auctions/${testAuctionId}/workflow-state`)
+        .put(`/api/auctions/${testAuctionId}/workflow`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({ workflow_state: 'complete' });
 
