@@ -208,7 +208,6 @@ jobs:
       - name: Run database migrations
         env:
           PGHOST: ${{ needs.deploy-infrastructure.outputs.db_address }}
-          PGSSLMODE: require
           PGPORT: 5432
           PGUSER: auctionlab
           PGPASSWORD: ${{ secrets.DB_PASSWORD }}
@@ -216,7 +215,7 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           NODE_ENV: ${{ github.event.inputs.environment || 'dev' }}
         run: |
-          export DATABASE_URL="postgresql://${PGUSER}:$(node -e "console.log(encodeURIComponent(process.env.PGPASSWORD))")@${PGHOST}:${PGPORT}/${PGDATABASE}"
+          export DATABASE_URL="postgresql://${PGUSER}:$(node -e "console.log(encodeURIComponent(process.env.PGPASSWORD))")@${PGHOST}:${PGPORT}/${PGDATABASE}?sslmode=no-verify"
           npm run migrate
 
       - name: Create Lambda deployment package
