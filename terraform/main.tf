@@ -64,6 +64,14 @@ resource "aws_security_group" "rds" {
     cidr_blocks = [data.aws_vpc.default.cidr_block]
   }
 
+  ingress {
+    description = "PostgreSQL from CI/CD (intentional for lab)"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     description = "Allow all outbound"
     from_port   = 0
@@ -292,6 +300,8 @@ resource "aws_lambda_function" "api" {
     variables = {
       NODE_ENV     = var.environment
       PROJECT_NAME = var.project_name
+      DATABASE_URL = "postgresql://${aws_db_instance.main.username}:${var.db_password}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}"
+      JWT_SECRET   = var.jwt_secret
     }
   }
 

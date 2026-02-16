@@ -31,6 +31,8 @@ jobs:
     outputs:
       lambda_function_name: ${{ steps.terraform-outputs.outputs.lambda_function_name }}
       api_url: ${{ steps.terraform-outputs.outputs.api_url }}
+      db_endpoint: ${{ steps.terraform-outputs.outputs.db_endpoint }}
+      db_name: ${{ steps.terraform-outputs.outputs.db_name }}
 
     steps:
       - name: Checkout code
@@ -87,6 +89,7 @@ jobs:
           echo "db_endpoint=$(terraform output -raw db_endpoint)" >> $GITHUB_OUTPUT
           echo "db_address=$(terraform output -raw db_address)" >> $GITHUB_OUTPUT
           echo "db_port=$(terraform output -raw db_port)" >> $GITHUB_OUTPUT
+          echo "db_name=$(terraform output -raw db_name)" >> $GITHUB_OUTPUT
           echo "api_url=$(terraform output -raw api_url)" >> $GITHUB_OUTPUT
           echo "lambda_function_name=$(terraform output -raw lambda_function_name)" >> $GITHUB_OUTPUT
 
@@ -200,6 +203,13 @@ jobs:
 
       - name: Build TypeScript
         run: npm run build
+
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://auctionlab:${{ secrets.DB_PASSWORD }}@${{ needs.deploy-infrastructure.outputs.db_endpoint }}/${{ needs.deploy-infrastructure.outputs.db_name }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          NODE_ENV: ${{ github.event.inputs.environment || 'dev' }}
+        run: npm run migrate
 
       - name: Create Lambda deployment package
         run: npm run package:lambda

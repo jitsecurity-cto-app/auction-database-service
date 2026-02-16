@@ -24,6 +24,14 @@ async function loadSecrets(): Promise<void> {
     return;
   }
 
+  // If DATABASE_URL and JWT_SECRET are already set as env vars (e.g. from Lambda config),
+  // skip Secrets Manager entirely — avoids VPC connectivity issues
+  if (process.env.DATABASE_URL && process.env.JWT_SECRET) {
+    console.log('Using environment variables for secrets (skipping Secrets Manager)');
+    secretsLoaded = true;
+    return;
+  }
+
   const region = process.env.AWS_REGION || 'us-east-1';
   const environment = process.env.NODE_ENV || 'dev';
   const projectName = process.env.PROJECT_NAME || 'auction-lab';
@@ -50,9 +58,10 @@ async function loadSecrets(): Promise<void> {
     secretsLoaded = true;
   } catch (error) {
     console.error('Failed to load secrets from Secrets Manager:', error);
-    // In development, allow fallback to environment variables
-    if (process.env.NODE_ENV === 'development') {
+    // Allow fallback to environment variables
+    if (process.env.DATABASE_URL) {
       console.warn('Falling back to environment variables');
+      secretsLoaded = true;
     } else {
       throw error;
     }

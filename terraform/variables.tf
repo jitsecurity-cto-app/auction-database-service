@@ -69,7 +69,7 @@ variable "db_backup_retention_period" {
 variable "db_publicly_accessible" {
   description = "Whether the database should be publicly accessible"
   type        = bool
-  default     = false # Set to true for lab/testing, false for production
+  default     = true # Public access needed for CI/CD migrations (intentional for lab)
 }
 
 variable "enable_performance_insights" {
