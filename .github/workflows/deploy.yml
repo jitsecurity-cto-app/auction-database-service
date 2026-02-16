@@ -28,6 +28,9 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    outputs:
+      lambda_function_name: ${{ steps.terraform-outputs.outputs.lambda_function_name }}
+      api_url: ${{ steps.terraform-outputs.outputs.api_url }}
 
     steps:
       - name: Checkout code
@@ -221,40 +224,26 @@ jobs:
           role-to-assume: arn:aws:iam::497919588760:role/deployer_oidc
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get Lambda function name from Terraform
-        id: lambda-info
-        working-directory: ./terraform
-        run: |
-          FUNCTION_NAME=$(terraform output -raw lambda_function_name 2>/dev/null || echo "")
-          if [ -z "$FUNCTION_NAME" ]; then
-            echo "❌ Error: Lambda function name is empty or not found"
-            exit 1
-          fi
-          echo "function_name=$FUNCTION_NAME" >> $GITHUB_OUTPUT
-          echo "✅ Lambda function name retrieved: $FUNCTION_NAME"
-
       - name: Update Lambda function code
         run: |
+          echo "✅ Lambda function: ${{ needs.deploy-infrastructure.outputs.lambda_function_name }}"
           aws lambda update-function-code \
-            --function-name ${{ steps.lambda-info.outputs.function_name }} \
+            --function-name ${{ needs.deploy-infrastructure.outputs.lambda_function_name }} \
             --zip-file fileb://lambda-deployment.zip \
             --region ${{ env.AWS_REGION }}
 
       - name: Wait for Lambda update to complete
         run: |
           aws lambda wait function-updated \
-            --function-name ${{ steps.lambda-info.outputs.function_name }} \
+            --function-name ${{ needs.deploy-infrastructure.outputs.lambda_function_name }} \
             --region ${{ env.AWS_REGION }}
 
-      - name: Get API URL
-        id: api-info
-        working-directory: ./terraform
+      - name: Display API URL
         run: |
-          API_URL=$(terraform output -raw api_url 2>/dev/null || echo "")
-          if [ -z "$API_URL" ]; then
-            echo "⚠️  Warning: API URL is empty or not found"
-          else
-            echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+          API_URL="${{ needs.deploy-infrastructure.outputs.api_url }}"
+          if [ -n "$API_URL" ]; then
             echo "::notice::API deployed at: $API_URL"
-            echo "✅ API URL retrieved successfully"
+            echo "✅ API URL: $API_URL"
+          else
+            echo "⚠️  Warning: API URL not available from infrastructure outputs"
           fi
