@@ -315,7 +315,6 @@ resource "aws_lambda_function" "api" {
   environment {
     variables = {
       NODE_ENV     = var.environment
-      AWS_REGION   = var.aws_region
       PROJECT_NAME = var.project_name
     }
   }
