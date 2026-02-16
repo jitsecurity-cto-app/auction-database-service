@@ -32,6 +32,7 @@ jobs:
       lambda_function_name: ${{ steps.terraform-outputs.outputs.lambda_function_name }}
       api_url: ${{ steps.terraform-outputs.outputs.api_url }}
       db_endpoint: ${{ steps.terraform-outputs.outputs.db_endpoint }}
+      db_address: ${{ steps.terraform-outputs.outputs.db_address }}
       db_name: ${{ steps.terraform-outputs.outputs.db_name }}
 
     steps:
@@ -206,10 +207,17 @@ jobs:
 
       - name: Run database migrations
         env:
-          DATABASE_URL: postgresql://auctionlab:${{ secrets.DB_PASSWORD }}@${{ needs.deploy-infrastructure.outputs.db_endpoint }}/${{ needs.deploy-infrastructure.outputs.db_name }}
+          PGHOST: ${{ needs.deploy-infrastructure.outputs.db_address }}
+          PGSSLMODE: require
+          PGPORT: 5432
+          PGUSER: auctionlab
+          PGPASSWORD: ${{ secrets.DB_PASSWORD }}
+          PGDATABASE: ${{ needs.deploy-infrastructure.outputs.db_name }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           NODE_ENV: ${{ github.event.inputs.environment || 'dev' }}
-        run: npm run migrate
+        run: |
+          export DATABASE_URL="postgresql://${PGUSER}:$(node -e "console.log(encodeURIComponent(process.env.PGPASSWORD))")@${PGHOST}:${PGPORT}/${PGDATABASE}"
+          npm run migrate
 
       - name: Create Lambda deployment package
         run: npm run package:lambda
