@@ -76,6 +76,18 @@ async function runMigrations(): Promise<void> {
         version: '004_tracking_and_disputes',
         file: '004_tracking_and_disputes.sql',
       },
+      {
+        version: '005_auction_images',
+        file: '005_auction_images.sql',
+      },
+      {
+        version: '006_notification_preferences',
+        file: '006_notification_preferences.sql',
+      },
+      {
+        version: '007_auction_scheduling',
+        file: '007_auction_scheduling.sql',
+      },
     ];
     
     for (const migration of migrations) {

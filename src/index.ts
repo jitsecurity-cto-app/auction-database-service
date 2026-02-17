@@ -48,6 +48,10 @@ import userRoutes from './routes/users';
 import orderRoutes from './routes/orders';
 import bidsStandaloneRoutes from './routes/bids-standalone';
 import disputeRoutes from './routes/disputes';
+import imageRoutes from './routes/images';
+import notificationRoutes from './routes/notifications';
+import auditRoutes from './routes/audit';
+import analyticsRoutes from './routes/analytics';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { logRequest } from './utils/logger';
 
@@ -63,6 +67,10 @@ app.use('/api/users', userRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/bids', bidsStandaloneRoutes);
 app.use('/api/disputes', disputeRoutes);
+app.use('/api/images', imageRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

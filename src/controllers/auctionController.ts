@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { query } from '../config/database';
 import { AuthRequest } from '../middleware/auth';
+import { logAuditEvent, getAuditContext } from '../utils/audit';
 
 export async function listAuctions(req: Request, res: Response): Promise<void> {
   try {
@@ -40,14 +41,32 @@ export async function listAuctions(req: Request, res: Response): Promise<void> {
 
     const result = await query(sqlQuery);
 
-    // Get bids for each auction (N+1 query problem - intentional)
+    // Get bids and images for each auction (N+1 query problem - intentional)
+    const IMAGES_CDN_URL = process.env.IMAGES_CDN_URL || '';
     const auctions = await Promise.all(
       result.rows.map(async (auction: any) => {
         const bidsQuery = `SELECT * FROM bids WHERE auction_id = ${auction.id} ORDER BY created_at DESC`;
         const bidsResult = await query(bidsQuery);
+
+        // Get primary image for listing view
+        let primary_image = null;
+        try {
+          const imgQuery = `SELECT * FROM auction_images WHERE auction_id = ${auction.id} AND is_primary = true LIMIT 1`;
+          const imgResult = await query(imgQuery);
+          if (imgResult.rows.length > 0) {
+            const img = imgResult.rows[0];
+            primary_image = {
+              ...img,
+              url: IMAGES_CDN_URL ? `${IMAGES_CDN_URL}/${img.s3_key}` : null,
+              thumbnail_url: IMAGES_CDN_URL ? `${IMAGES_CDN_URL}/thumbnails/${img.s3_key}` : null,
+            };
+          }
+        } catch { /* auction_images table may not exist yet */ }
+
         return {
           ...auction,
           bids: bidsResult.rows,
+          primary_image,
         };
       })
     );
@@ -97,11 +116,25 @@ export async function getAuctionById(req: Request, res: Response): Promise<void>
     const orderResult = await query(orderQuery);
     const order = orderResult.rows[0] || null;
 
+    // Get images
+    const IMG_CDN = process.env.IMAGES_CDN_URL || '';
+    let images: any[] = [];
+    try {
+      const imagesQuery = `SELECT * FROM auction_images WHERE auction_id = ${id} ORDER BY is_primary DESC, sort_order ASC`;
+      const imagesResult = await query(imagesQuery);
+      images = imagesResult.rows.map((img: any) => ({
+        ...img,
+        url: IMG_CDN ? `${IMG_CDN}/${img.s3_key}` : null,
+        thumbnail_url: IMG_CDN ? `${IMG_CDN}/thumbnails/${img.s3_key}` : null,
+      }));
+    } catch { /* auction_images table may not exist yet */ }
+
     res.json({
       ...auction,
       bids: bidsResult.rows,
       creator: creatorResult.rows[0] || null,
       order,
+      images,
     });
   } catch (error) {
     // Intentionally verbose error logging (security vulnerability)
@@ -116,7 +149,7 @@ export async function getAuctionById(req: Request, res: Response): Promise<void>
 
 export async function createAuction(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const { title, description, starting_price, end_time } = req.body;
+    const { title, description, starting_price, end_time, start_time } = req.body;
     const userId = req.userId;
 
     if (!userId) {
@@ -135,18 +168,31 @@ export async function createAuction(req: AuthRequest, res: Response): Promise<vo
       description,
       starting_price,
       end_time,
+      start_time,
       created_by: userId,
     });
 
+    // Determine initial status based on start_time
+    const isScheduled = start_time && new Date(start_time) > new Date();
+    const initialStatus = isScheduled ? 'scheduled' : 'active';
+    const initialWorkflowState = isScheduled ? 'active' : 'active';
+
     // Use string concatenation (SQL injection vulnerability)
     const insertQuery = `
-      INSERT INTO auctions (title, description, starting_price, current_bid, end_time, status, workflow_state, created_by)
-      VALUES ('${title}', '${description}', ${starting_price}, ${starting_price}, '${end_time}', 'active', 'active', ${userId})
+      INSERT INTO auctions (title, description, starting_price, current_bid, end_time, start_time, status, workflow_state, created_by)
+      VALUES ('${title}', '${description}', ${starting_price}, ${starting_price}, '${end_time}', ${start_time ? `'${start_time}'` : 'NULL'}, '${initialStatus}', '${initialWorkflowState}', ${userId})
       RETURNING *
     `;
 
     const result = await query(insertQuery);
     const auction = result.rows[0];
+
+    // Audit: log auction creation
+    const audit = getAuditContext(req);
+    logAuditEvent({
+      entity_type: 'auction', entity_id: String(auction.id), action: 'create',
+      ...audit, new_values: { title, description, starting_price, end_time },
+    });
 
     res.status(201).json(auction);
   } catch (error) {
@@ -239,6 +285,13 @@ export async function deleteAuction(req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // Audit: log auction deletion
+    const delAudit = getAuditContext(req);
+    logAuditEvent({
+      entity_type: 'auction', entity_id: id, action: 'delete',
+      ...delAudit, old_values: result.rows[0],
+    });
+
     res.json({ message: 'Auction deleted successfully', auction: result.rows[0] });
   } catch (error) {
     // Intentionally verbose error logging (security vulnerability)
@@ -283,6 +336,16 @@ export async function closeAuction(req: Request, res: Response): Promise<void> {
     const updateResult = await query(updateQuery);
     const updatedAuction = updateResult.rows[0];
     console.log('Auction closed:', { auction_id: id, winner_id: winnerId, final_bid: auction.current_bid });
+
+    // Audit: log auction close
+    const closeAudit = getAuditContext(req);
+    logAuditEvent({
+      entity_type: 'auction', entity_id: id, action: 'close',
+      ...closeAudit,
+      old_values: { status: auction.status },
+      new_values: { status: 'ended', winner_id: winnerId },
+    });
+
     res.json({
       message: 'Auction closed successfully',
       auction: updatedAuction,

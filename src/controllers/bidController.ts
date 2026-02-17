@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { query } from '../config/database';
 import { AuthRequest } from '../middleware/auth';
+import { publishNotificationEvent } from './notificationController';
+import { broadcastToAuction } from '../workers/websocketHandlers';
 
 export async function getBidsByAuction(req: Request, res: Response): Promise<void> {
   try {
@@ -134,6 +136,52 @@ export async function createBid(req: AuthRequest, res: Response): Promise<void> 
       user_id: userId,
       amount: bidAmount,
     });
+
+    // Broadcast new bid to all WebSocket clients watching this auction
+    try {
+      const wsApiUrl = process.env.WEBSOCKET_API_URL;
+      if (wsApiUrl) {
+        // Fetch bidder info for the broadcast message
+        const userQuery = `SELECT id, email, name FROM users WHERE id = ${userId}`;
+        const userResult = await query(userQuery);
+        const bidUser = userResult.rows[0];
+
+        await broadcastToAuction(
+          String(id),
+          {
+            type: 'new_bid',
+            bid: {
+              ...bid,
+              amount: parseFloat(bid.amount),
+              user: bidUser ? { id: bidUser.id, email: bidUser.email, name: bidUser.name } : undefined,
+            },
+            current_bid: bidAmount,
+            auction_id: id,
+          },
+          wsApiUrl
+        );
+      }
+    } catch (wsError) {
+      // Fire-and-forget: don't fail the bid if broadcast fails
+      console.error('Failed to broadcast bid via WebSocket:', wsError);
+    }
+
+    // Notify previous highest bidder they've been outbid
+    try {
+      const prevBidsQuery = `SELECT DISTINCT user_id FROM bids WHERE auction_id = ${id} AND user_id != ${userId} ORDER BY user_id`;
+      const prevBids = await query(prevBidsQuery);
+      for (const row of prevBids.rows) {
+        await publishNotificationEvent({
+          type: 'outbid',
+          user_id: String(row.user_id),
+          title: 'You\'ve been outbid!',
+          message: `Someone placed a higher bid of $${bidAmount} on "${auction.title}"`,
+          metadata: { auction_id: id, bid_amount: bidAmount },
+        });
+      }
+    } catch (notifError) {
+      console.error('Failed to send outbid notifications:', notifError);
+    }
 
     // Convert amount from string (DECIMAL) to number for response
     res.status(201).json({
