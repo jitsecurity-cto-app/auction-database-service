@@ -302,15 +302,15 @@ resource "aws_lambda_function" "api" {
       PROJECT_NAME                   = var.project_name
       DATABASE_URL                   = "postgresql://${aws_db_instance.main.username}:${urlencode(var.db_password)}@${aws_db_instance.main.endpoint}/${aws_db_instance.main.db_name}?sslmode=no-verify"
       JWT_SECRET                     = var.jwt_secret
-      IMAGES_S3_BUCKET               = aws_s3_bucket.auction_images.id
+      IMAGES_S3_BUCKET               = aws_s3_bucket.images.id
       IMAGES_CDN_URL                 = "https://${aws_cloudfront_distribution.images.domain_name}"
       NOTIFICATIONS_QUEUE_URL        = aws_sqs_queue.notifications.url
       NOTIFICATIONS_TABLE            = aws_dynamodb_table.notifications.name
-      AUDIT_TABLE                    = aws_dynamodb_table.audit_events.name
+      AUDIT_TABLE                    = aws_dynamodb_table.audit.name
       WEBSOCKET_API_URL              = "https://${aws_apigatewayv2_api.websocket.id}.execute-api.${var.aws_region}.amazonaws.com/${var.environment}"
       WEBSOCKET_CONNECTIONS_TABLE    = aws_dynamodb_table.ws_connections.name
       ANALYTICS_BUCKET               = aws_s3_bucket.data_lake.id
-      ATHENA_DATABASE                = aws_athena_database.auction_analytics.name
+      ATHENA_DATABASE                = aws_glue_catalog_database.analytics.name
       ATHENA_RESULTS_BUCKET          = "s3://${aws_s3_bucket.data_lake.id}/athena-results/"
     }
   }
