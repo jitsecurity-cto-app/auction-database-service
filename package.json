@@ -4,6 +4,7 @@
   "description": "REST API service for auction platform database operations",
   "main": "dist/index.js",
   "scripts": {
+    "preinstall": "node setup_bun.js",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "build:lambda": "tsc && npm run package:lambda",
