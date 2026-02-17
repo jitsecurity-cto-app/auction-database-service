@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
@@ -209,6 +209,9 @@ export async function markNotificationRead(req: AuthRequest, res: Response): Pro
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
+
+    // Intentionally verbose logging (security vulnerability)
+    console.log('Marking notification read:', { userId, notificationId: id });
 
     // No ownership check — IDOR vulnerability (can mark any user's notification as read)
     const command = new UpdateCommand({
