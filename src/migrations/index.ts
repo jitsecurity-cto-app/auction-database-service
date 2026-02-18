@@ -88,6 +88,10 @@ async function runMigrations(): Promise<void> {
         version: '007_auction_scheduling',
         file: '007_auction_scheduling.sql',
       },
+      {
+        version: '008_audit_events',
+        file: '008_audit_events.sql',
+      },
     ];
     
     for (const migration of migrations) {

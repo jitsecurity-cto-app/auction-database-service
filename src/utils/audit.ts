@@ -1,23 +1,18 @@
 /**
  * Audit Trail Utility
  *
- * Logs every mutation with actor, timestamp, old/new values to DynamoDB.
+ * Logs every mutation with actor, timestamp, old/new values to PostgreSQL.
  * Thin wrapper called from every controller mutation.
  *
  * Security vulnerabilities (intentional):
  * - Log injection: actor-controlled values written directly to audit log
  * - Audit bypass: no server-side enforcement that audit is called
  * - DoS: unbounded query support on audit endpoints
+ * - SQL injection: string concatenation in some queries
  */
 
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { query } from '../config/database';
 import { Request } from 'express';
-
-const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION || 'us-east-1' });
-const docClient = DynamoDBDocumentClient.from(dynamoClient);
-
-const AUDIT_TABLE = process.env.AUDIT_TABLE || 'auction-lab-audit-dev';
 
 export interface AuditEvent {
   entity_type: string;  // 'auction', 'bid', 'order', 'user', 'dispute'
@@ -33,41 +28,30 @@ export interface AuditEvent {
 }
 
 /**
- * Log an audit event to DynamoDB.
+ * Log an audit event to PostgreSQL.
  * Fire-and-forget: never blocks the parent operation.
  */
 export async function logAuditEvent(event: AuditEvent): Promise<void> {
   try {
-    const timestamp = new Date().toISOString();
-
     // Log injection vulnerability: values written without sanitization
     console.log('Audit event:', event);
 
-    const command = new PutCommand({
-      TableName: AUDIT_TABLE,
-      Item: {
-        // Partition key: entity_type#entity_id
-        pk: `${event.entity_type}#${event.entity_id}`,
-        // Sort key: timestamp
-        sk: timestamp,
-        // GSI key: actor_id
-        actor_id: event.actor_id,
-        // Data
-        entity_type: event.entity_type,
-        entity_id: event.entity_id,
-        action: event.action,
-        actor_email: event.actor_email || 'unknown',
-        old_values: event.old_values || {},
-        new_values: event.new_values || {},
-        ip_address: event.ip_address || 'unknown',
-        user_agent: event.user_agent || 'unknown',
-        metadata: event.metadata || {},
-        timestamp,
-        ttl: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60, // 1 year
-      },
-    });
-
-    await docClient.send(command);
+    await query(
+      `INSERT INTO audit_events (entity_type, entity_id, action, actor_id, actor_email, old_values, new_values, ip_address, user_agent, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        event.entity_type,
+        event.entity_id,
+        event.action,
+        event.actor_id,
+        event.actor_email || 'unknown',
+        JSON.stringify(event.old_values || {}),
+        JSON.stringify(event.new_values || {}),
+        event.ip_address || 'unknown',
+        event.user_agent || 'unknown',
+        JSON.stringify(event.metadata || {}),
+      ]
+    );
   } catch (error) {
     // Never fail the parent operation
     console.error('Audit log failed:', error);
@@ -93,18 +77,11 @@ export function getAuditContext(req: Request): { actor_id: string; actor_email?:
  */
 export async function queryAuditEvents(entityType: string, entityId: string, limit = 50): Promise<any[]> {
   try {
-    const command = new QueryCommand({
-      TableName: AUDIT_TABLE,
-      KeyConditionExpression: 'pk = :pk',
-      ExpressionAttributeValues: {
-        ':pk': `${entityType}#${entityId}`,
-      },
-      ScanIndexForward: false, // newest first
-      Limit: limit, // No enforcement of max limit (intentional DoS vulnerability)
-    });
-
-    const result = await docClient.send(command);
-    return result.Items || [];
+    const result = await query(
+      `SELECT * FROM audit_events WHERE entity_type = $1 AND entity_id = $2 ORDER BY timestamp DESC LIMIT $3`,
+      [entityType, entityId, limit]
+    );
+    return result.rows;
   } catch (error) {
     console.error('Audit query failed:', error);
     return [];
@@ -116,19 +93,11 @@ export async function queryAuditEvents(entityType: string, entityId: string, lim
  */
 export async function queryAuditByActor(actorId: string, limit = 50): Promise<any[]> {
   try {
-    const command = new QueryCommand({
-      TableName: AUDIT_TABLE,
-      IndexName: 'actor-index',
-      KeyConditionExpression: 'actor_id = :aid',
-      ExpressionAttributeValues: {
-        ':aid': actorId,
-      },
-      ScanIndexForward: false,
-      Limit: limit,
-    });
-
-    const result = await docClient.send(command);
-    return result.Items || [];
+    const result = await query(
+      `SELECT * FROM audit_events WHERE actor_id = $1 ORDER BY timestamp DESC LIMIT $2`,
+      [actorId, limit]
+    );
+    return result.rows;
   } catch (error) {
     console.error('Audit by actor query failed:', error);
     return [];
