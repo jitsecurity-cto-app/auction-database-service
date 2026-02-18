@@ -188,6 +188,7 @@ jobs:
     name: Build and Deploy Lambda
     runs-on: ubuntu-latest
     needs: [deploy-infrastructure, test]
+    if: always() && needs.deploy-infrastructure.result == 'success'
     environment: ${{ github.event.inputs.environment || 'dev' }}
     permissions:
       id-token: write
