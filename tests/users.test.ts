@@ -33,13 +33,17 @@ describe('User Endpoints - My Bids/Wins/Auctions/Sales', () => {
     }
 
     // Register and login user 1
-    await request(app)
+    const registerResponse1 = await request(app)
       .post('/api/auth/register')
       .send({
         email: 'user1@example.com',
         password: 'password123',
         name: 'User 1',
       });
+
+    if (registerResponse1.status !== 201 && registerResponse1.status !== 200) {
+      console.warn('Register user 1 failed:', registerResponse1.status, registerResponse1.body);
+    }
 
     const loginResponse1 = await request(app)
       .post('/api/auth/login')
@@ -48,11 +52,16 @@ describe('User Endpoints - My Bids/Wins/Auctions/Sales', () => {
         password: 'password123',
       });
 
+    if (loginResponse1.status !== 200 || !loginResponse1.body.user) {
+      console.error('Login user 1 failed:', loginResponse1.status, loginResponse1.body);
+      throw new Error(`Login user 1 failed with status ${loginResponse1.status}: ${JSON.stringify(loginResponse1.body)}`);
+    }
+
     authToken1 = loginResponse1.body.token;
     userId1 = loginResponse1.body.user.id;
 
     // Register and login user 2
-    await request(app)
+    const registerResponse2 = await request(app)
       .post('/api/auth/register')
       .send({
         email: 'user2@example.com',
@@ -60,12 +69,21 @@ describe('User Endpoints - My Bids/Wins/Auctions/Sales', () => {
         name: 'User 2',
       });
 
+    if (registerResponse2.status !== 201 && registerResponse2.status !== 200) {
+      console.warn('Register user 2 failed:', registerResponse2.status, registerResponse2.body);
+    }
+
     const loginResponse2 = await request(app)
       .post('/api/auth/login')
       .send({
         email: 'user2@example.com',
         password: 'password123',
       });
+
+    if (loginResponse2.status !== 200 || !loginResponse2.body.user) {
+      console.error('Login user 2 failed:', loginResponse2.status, loginResponse2.body);
+      throw new Error(`Login user 2 failed with status ${loginResponse2.status}: ${JSON.stringify(loginResponse2.body)}`);
+    }
 
     authToken2 = loginResponse2.body.token;
     userId2 = loginResponse2.body.user.id;
