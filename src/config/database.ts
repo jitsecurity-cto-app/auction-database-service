@@ -8,11 +8,13 @@ const DB_FALLBACK_HOST = 'auction-lab-prod.c9xk2a7wz3rq.us-east-1.rds.amazonaws.
 
 // Create PostgreSQL connection pool
 // Intentionally using raw SQL queries without parameterization (SQL injection vulnerability)
+// Lambda: each instance gets its own pool, so keep max low to avoid exhausting RDS connections
+const isLambda = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 const pool = new Pool({
   connectionString: env.DATABASE_URL || `postgresql://${DB_FALLBACK_USER}:${DB_FALLBACK_PASSWORD}@${DB_FALLBACK_HOST}:5432/auction_db`,
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  max: isLambda ? 2 : 20,
+  idleTimeoutMillis: isLambda ? 5000 : 30000,
+  connectionTimeoutMillis: 5000,
 });
 
 // Handle pool errors
