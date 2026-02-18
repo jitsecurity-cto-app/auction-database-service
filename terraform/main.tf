@@ -362,19 +362,11 @@ resource "aws_security_group_rule" "lambda_to_rds" {
 
 # VPC Gateway Endpoints — allow Lambda in VPC to reach DynamoDB and S3
 # Gateway endpoints are free (no per-hour or per-GB charges)
-data "aws_route_table" "main" {
-  vpc_id = data.aws_vpc.default.id
-  filter {
-    name   = "association.main"
-    values = ["true"]
-  }
-}
-
 resource "aws_vpc_endpoint" "dynamodb" {
   vpc_id            = data.aws_vpc.default.id
   service_name      = "com.amazonaws.${var.aws_region}.dynamodb"
   vpc_endpoint_type = "Gateway"
-  route_table_ids   = [data.aws_route_table.main.id]
+  route_table_ids   = [data.aws_vpc.default.main_route_table_id]
 
   tags = {
     Name = "${var.project_name}-dynamodb-endpoint-${var.environment}"
@@ -385,7 +377,7 @@ resource "aws_vpc_endpoint" "s3" {
   vpc_id            = data.aws_vpc.default.id
   service_name      = "com.amazonaws.${var.aws_region}.s3"
   vpc_endpoint_type = "Gateway"
-  route_table_ids   = [data.aws_route_table.main.id]
+  route_table_ids   = [data.aws_vpc.default.main_route_table_id]
 
   tags = {
     Name = "${var.project_name}-s3-endpoint-${var.environment}"
