@@ -104,6 +104,19 @@ variable "log_retention_days" {
   default     = 7
 }
 
+# Custom Domain
+variable "domain_name" {
+  description = "Custom domain name for API Gateway (e.g., api.auctionspulse.com)"
+  type        = string
+  default     = ""
+}
+
+variable "hosted_zone_name" {
+  description = "Route53 hosted zone name (e.g., auctionspulse.com)"
+  type        = string
+  default     = "auctionspulse.com"
+}
+
 # JWT Secret
 variable "jwt_secret" {
   description = "JWT secret key (intentionally weak for lab)"

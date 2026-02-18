@@ -75,6 +75,8 @@ jobs:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+          TF_VAR_domain_name: api.auctionspulse.com
+          TF_VAR_hosted_zone_name: auctionspulse.com
         run: terraform plan -out=tfplan
 
       - name: Terraform Apply
@@ -83,6 +85,8 @@ jobs:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+          TF_VAR_domain_name: api.auctionspulse.com
+          TF_VAR_hosted_zone_name: auctionspulse.com
         run: terraform apply -auto-approve tfplan
 
       - name: Get Terraform Outputs
