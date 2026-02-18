@@ -272,12 +272,27 @@ jobs:
           fi
         continue-on-error: true
 
+      - name: Seed image database records
+        run: |
+          API_URL="${{ needs.deploy-infrastructure.outputs.api_url }}"
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
+          if [ -n "$API_URL" ]; then
+            echo "Seeding image records via $API_URL/$ENV/api/images/seed"
+            curl -s -X POST "$API_URL/$ENV/api/images/seed" \
+              -H "Content-Type: application/json" \
+              --max-time 30 || echo "⚠️ Image seed failed (non-fatal)"
+          else
+            echo "⚠️ API URL not available, skipping image seed"
+          fi
+        continue-on-error: true
+
       - name: Seed audit events
         run: |
           API_URL="${{ needs.deploy-infrastructure.outputs.api_url }}"
+          ENV="${{ github.event.inputs.environment || 'dev' }}"
           if [ -n "$API_URL" ]; then
-            echo "Seeding audit events via $API_URL/audit/seed"
-            curl -s -X POST "$API_URL/audit/seed" \
+            echo "Seeding audit events via $API_URL/$ENV/api/audit/seed"
+            curl -s -X POST "$API_URL/$ENV/api/audit/seed" \
               -H "Content-Type: application/json" \
               --max-time 30 || echo "⚠️ Audit seed failed (non-fatal)"
           else

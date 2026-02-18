@@ -5,6 +5,7 @@ import {
   getImagesByAuction,
   deleteImage,
   setPrimaryImage,
+  seedImages,
 } from '../controllers/imageController';
 import { verifyToken, optionalAuth } from '../middleware/auth';
 
@@ -21,6 +22,9 @@ router.get('/auction/:auction_id', optionalAuth, getImagesByAuction);
 
 // PUT /api/images/:id/primary - Set primary image (no auth check - intentional vulnerability)
 router.put('/:id/primary', optionalAuth, setPrimaryImage);
+
+// POST /api/images/seed - Seed image records for existing auctions (no auth - intentional vulnerability)
+router.post('/seed', optionalAuth, seedImages);
 
 // DELETE /api/images/:id - Delete image (no auth check - intentional vulnerability)
 router.delete('/:id', optionalAuth, deleteImage);

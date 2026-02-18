@@ -178,6 +178,81 @@ export async function deleteImage(req: Request, res: Response): Promise<void> {
   }
 }
 
+// Seed image records for existing auctions
+// Maps auction titles to image categories and inserts auction_images records
+// No auth check (intentional vulnerability)
+export async function seedImages(req: Request, res: Response): Promise<void> {
+  const PLACEHOLDER_IMAGES: Record<string, string[]> = {
+    watches: ['seed/watches/rolex-submariner-1.jpg', 'seed/watches/rolex-submariner-2.jpg', 'seed/watches/rolex-submariner-3.jpg'],
+    art: ['seed/art/abstract-painting-1.jpg', 'seed/art/abstract-painting-2.jpg'],
+    electronics: ['seed/electronics/macbook-pro-1.jpg', 'seed/electronics/macbook-pro-2.jpg', 'seed/electronics/macbook-pro-3.jpg'],
+    furniture: ['seed/furniture/mid-century-chair-1.jpg', 'seed/furniture/mid-century-chair-2.jpg'],
+    jewelry: ['seed/jewelry/diamond-ring-1.jpg', 'seed/jewelry/diamond-ring-2.jpg', 'seed/jewelry/diamond-ring-3.jpg'],
+    collectibles: ['seed/collectibles/vintage-vinyl-1.jpg'],
+    cameras: ['seed/cameras/leica-m6-1.jpg', 'seed/cameras/leica-m6-2.jpg'],
+    wine: ['seed/wine/bordeaux-1982-1.jpg'],
+    guitars: ['seed/guitars/fender-strat-1.jpg', 'seed/guitars/fender-strat-2.jpg'],
+    sneakers: ['seed/sneakers/jordan-1-1.jpg', 'seed/sneakers/jordan-1-2.jpg'],
+  };
+
+  // Map auction title keywords to image categories
+  const TITLE_CATEGORY_MAP: Array<[RegExp, string]> = [
+    [/rolex|watch|submariner/i, 'watches'],
+    [/painting|art|abstract|canvas/i, 'art'],
+    [/macbook|laptop|electronics/i, 'electronics'],
+    [/chair|furniture|mid-century/i, 'furniture'],
+    [/diamond|ring|jewelry|necklace/i, 'jewelry'],
+    [/vinyl|collectible|record|comic/i, 'collectibles'],
+    [/leica|camera|photography/i, 'cameras'],
+    [/wine|bordeaux|château/i, 'wine'],
+    [/guitar|fender|stratocaster/i, 'guitars'],
+    [/sneaker|jordan|shoe|nike/i, 'sneakers'],
+  ];
+
+  try {
+    // Get all auctions
+    const auctions = await query('SELECT id, title, created_by FROM auctions ORDER BY id');
+
+    // Check existing image count
+    const existing = await query('SELECT COUNT(*) as cnt FROM auction_images');
+    if (parseInt(existing.rows[0].cnt) > 0) {
+      res.json({ message: 'Images already seeded', existing: parseInt(existing.rows[0].cnt) });
+      return;
+    }
+
+    let created = 0;
+    for (const auction of auctions.rows) {
+      // Determine category from title
+      let category = 'watches'; // default
+      for (const [pattern, cat] of TITLE_CATEGORY_MAP) {
+        if (pattern.test(auction.title)) {
+          category = cat;
+          break;
+        }
+      }
+
+      const images = PLACEHOLDER_IMAGES[category] || PLACEHOLDER_IMAGES.watches;
+      for (let j = 0; j < images.length; j++) {
+        const s3Key = images[j];
+        const filename = s3Key.split('/').pop() || 'image.jpg';
+        await query(
+          `INSERT INTO auction_images (auction_id, uploaded_by, s3_key, original_filename, content_type, file_size, sort_order, is_primary)
+           VALUES (${auction.id}, ${auction.created_by}, '${s3Key}', '${filename}', 'image/jpeg', ${Math.floor(Math.random() * 500000) + 100000}, ${j}, ${j === 0 ? 'true' : 'false'})`
+        );
+        created++;
+      }
+    }
+
+    res.json({ message: `Seeded ${created} image records for ${auctions.rows.length} auctions`, count: created });
+  } catch (error) {
+    console.error('Seed images error:', error);
+    res.status(500).json({
+      error: 'Failed to seed images',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+}
+
 // Set primary image for an auction
 export async function setPrimaryImage(req: Request, res: Response): Promise<void> {
   try {
