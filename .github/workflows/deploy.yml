@@ -34,6 +34,8 @@ jobs:
       db_endpoint: ${{ steps.terraform-outputs.outputs.db_endpoint }}
       db_address: ${{ steps.terraform-outputs.outputs.db_address }}
       db_name: ${{ steps.terraform-outputs.outputs.db_name }}
+      images_bucket_name: ${{ steps.terraform-outputs.outputs.images_bucket_name }}
+      images_cdn_url: ${{ steps.terraform-outputs.outputs.images_cdn_url }}
 
     steps:
       - name: Checkout code
@@ -93,6 +95,8 @@ jobs:
           echo "db_name=$(terraform output -raw db_name)" >> $GITHUB_OUTPUT
           echo "api_url=$(terraform output -raw api_url)" >> $GITHUB_OUTPUT
           echo "lambda_function_name=$(terraform output -raw lambda_function_name)" >> $GITHUB_OUTPUT
+          echo "images_bucket_name=$(terraform output -raw images_bucket_name)" >> $GITHUB_OUTPUT
+          echo "images_cdn_url=$(terraform output -raw images_cdn_url)" >> $GITHUB_OUTPUT
 
   test:
     name: Run Tests
@@ -254,6 +258,32 @@ jobs:
           aws lambda wait function-updated \
             --function-name ${{ needs.deploy-infrastructure.outputs.lambda_function_name }} \
             --region ${{ env.AWS_REGION }}
+
+      - name: Upload seed images to S3
+        env:
+          IMAGES_S3_BUCKET: ${{ needs.deploy-infrastructure.outputs.images_bucket_name }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          if [ -n "$IMAGES_S3_BUCKET" ]; then
+            echo "Uploading seed images to s3://$IMAGES_S3_BUCKET/"
+            npx tsx src/seed/upload-images.ts || echo "⚠️ Image upload failed (non-fatal)"
+          else
+            echo "⚠️ IMAGES_S3_BUCKET not set, skipping image upload"
+          fi
+        continue-on-error: true
+
+      - name: Seed audit events
+        run: |
+          API_URL="${{ needs.deploy-infrastructure.outputs.api_url }}"
+          if [ -n "$API_URL" ]; then
+            echo "Seeding audit events via $API_URL/audit/seed"
+            curl -s -X POST "$API_URL/audit/seed" \
+              -H "Content-Type: application/json" \
+              --max-time 30 || echo "⚠️ Audit seed failed (non-fatal)"
+          else
+            echo "⚠️ API URL not available, skipping audit seed"
+          fi
+        continue-on-error: true
 
       - name: Display API URL
         run: |

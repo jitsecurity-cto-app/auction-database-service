@@ -3,6 +3,7 @@ import {
   getEntityAudit,
   getActorAudit,
   getRecentAudit,
+  seedAuditEvents,
 } from '../controllers/auditController';
 import { optionalAuth } from '../middleware/auth';
 
@@ -16,5 +17,8 @@ router.get('/entity/:entity_type/:entity_id', optionalAuth, getEntityAudit);
 
 // GET /api/audit/actor/:actor_id - Get audit trail for actor
 router.get('/actor/:actor_id', optionalAuth, getActorAudit);
+
+// POST /api/audit/seed - Seed audit events from existing DB data (no auth - intentional vulnerability)
+router.post('/seed', optionalAuth, seedAuditEvents);
 
 export default router;
