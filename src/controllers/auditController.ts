@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { queryAuditEvents, queryAuditByActor, logAuditEvent } from '../utils/audit';
+import { queryAuditEvents, queryAuditByActor } from '../utils/audit';
 import { query as dbQuery } from '../config/database';
 
 // Get audit trail for a specific entity
