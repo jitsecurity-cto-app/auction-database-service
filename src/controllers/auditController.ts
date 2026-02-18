@@ -230,7 +230,6 @@ export async function seedAuditEvents(req: Request, res: Response): Promise<void
     let written = 0;
 
     for (const event of events) {
-      const timestamp = new Date(Date.now() + event.timestamp_offset_hours * 3600000);
       await logAuditEvent({
         entity_type: event.entity_type,
         entity_id: event.entity_id,
