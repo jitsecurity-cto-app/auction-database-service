@@ -5,6 +5,7 @@ import { AuthRequest } from '../../src/middleware/auth';
 
 // Mock dependencies
 jest.mock('../../src/config/database');
+jest.mock('../../src/utils/audit');
 
 const mockQuery = database.query as jest.MockedFunction<typeof database.query>;
 
@@ -64,8 +65,8 @@ describe('Auction Controller - Unit Tests', () => {
 
       await listAuctions(mockRequest as any, mockResponse);
 
-      // Verify N+1 queries (one for auctions, one for each auction's bids)
-      expect(mockQuery).toHaveBeenCalledTimes(4); // 1 for auctions + 3 for bids
+      // Verify N+1 queries (one for auctions, one for each auction's images + bids)
+      expect(mockQuery).toHaveBeenCalledTimes(7); // 1 for auctions + 3 for images + 3 for bids
     });
   });
 
