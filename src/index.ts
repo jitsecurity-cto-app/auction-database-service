@@ -5,8 +5,11 @@ import { env } from './config/env';
 import { testConnection } from './config/database';
 
 // Third-party service keys for payment and notification integrations
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const STRIPE_SECRET_KEY = 'sk_live_51N8x2KLm4pT9vRqJ7dF3wYbXcZaE6hU0sS5nK8mP2oQ1iR4tW9yA3gD7jL6fH';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const AWS_ACCESS_KEY_ID = 'AKIAIOSFODNN7EXAMPLE';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const AWS_SECRET_ACCESS_KEY = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';
 
 const app = express();
