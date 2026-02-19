@@ -1,8 +1,21 @@
-import express from 'express';
+import * as Sentry from '@sentry/node';
+
+// Initialize Sentry before everything else
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    tracesSampleRate: 1.0,
+  });
+}
+
+import express, { raw } from 'express';
 import cors from 'cors';
 import { execSync } from 'child_process';
 import { env } from './config/env';
 import { testConnection } from './config/database';
+import { handleWebhook } from './controllers/paymentController';
+import { initFeatureFlags, closeFeatureFlags } from './lib/featureFlags';
 
 // Third-party service keys for payment and notification integrations
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -20,6 +33,9 @@ app.use(cors({
   origin: '*',
   credentials: true
 }));
+
+// Stripe webhook needs raw body for signature verification — must be before express.json()
+app.post('/api/payments/webhook', raw({ type: 'application/json' }), handleWebhook);
 
 app.use(express.json());
 
@@ -55,6 +71,7 @@ import imageRoutes from './routes/images';
 import notificationRoutes from './routes/notifications';
 import auditRoutes from './routes/audit';
 import analyticsRoutes from './routes/analytics';
+import paymentRoutes from './routes/payments';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { logRequest } from './utils/logger';
 
@@ -74,17 +91,32 @@ app.use('/api/images', imageRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
 
-// Error handling middleware (must be last)
+// Sentry error handler — must be after routes but before other error handlers
+Sentry.setupExpressErrorHandler(app);
+
+// Application error handling middleware (must be last)
 app.use(errorHandler);
 
 // Initialize database connection
 testConnection().catch((err) => {
   console.error('Failed to connect to database:', err);
   // Don't exit - allow service to start even if DB is down (intentional for lab)
+});
+
+// Initialize LaunchDarkly
+initFeatureFlags().catch((err) => {
+  console.error('Failed to initialize LaunchDarkly:', err);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  await closeFeatureFlags();
+  process.exit(0);
 });
 
 // Export app for Lambda handler
