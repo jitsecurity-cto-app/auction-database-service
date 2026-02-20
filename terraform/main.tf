@@ -312,6 +312,9 @@ resource "aws_lambda_function" "api" {
       ANALYTICS_BUCKET               = aws_s3_bucket.data_lake.id
       ATHENA_DATABASE                = aws_glue_catalog_database.analytics.name
       ATHENA_RESULTS_BUCKET          = "s3://${aws_s3_bucket.data_lake.id}/athena-results/"
+      STRIPE_SECRET_KEY              = var.stripe_secret_key
+      SENTRY_DSN                     = var.sentry_dsn
+      LAUNCHDARKLY_SDK_KEY           = var.launchdarkly_sdk_key
     }
   }
 

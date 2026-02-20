@@ -125,3 +125,24 @@ variable "jwt_secret" {
   default     = "weak-secret-key"
 }
 
+# Integration secrets
+variable "stripe_secret_key" {
+  description = "Stripe secret key for payment processing"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "sentry_dsn" {
+  description = "Sentry DSN for error tracking"
+  type        = string
+  default     = ""
+}
+
+variable "launchdarkly_sdk_key" {
+  description = "LaunchDarkly server-side SDK key"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+

@@ -87,6 +87,9 @@ jobs:
           TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
           TF_VAR_domain_name: ${{ (github.event.inputs.environment || 'dev') == 'prod' && 'api.auctionspulse.com' || format('api.{0}.auctionspulse.com', github.event.inputs.environment || 'dev') }}
           TF_VAR_hosted_zone_name: auctionspulse.com
+          TF_VAR_stripe_secret_key: ${{ secrets.STRIPE_SECRET_KEY || '' }}
+          TF_VAR_sentry_dsn: ${{ secrets.SENTRY_DSN || '' }}
+          TF_VAR_launchdarkly_sdk_key: ${{ secrets.LAUNCHDARKLY_SDK_KEY || '' }}
         run: terraform plan -out=tfplan
 
       - name: Terraform Apply
@@ -97,6 +100,9 @@ jobs:
           TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
           TF_VAR_domain_name: ${{ (github.event.inputs.environment || 'dev') == 'prod' && 'api.auctionspulse.com' || format('api.{0}.auctionspulse.com', github.event.inputs.environment || 'dev') }}
           TF_VAR_hosted_zone_name: auctionspulse.com
+          TF_VAR_stripe_secret_key: ${{ secrets.STRIPE_SECRET_KEY || '' }}
+          TF_VAR_sentry_dsn: ${{ secrets.SENTRY_DSN || '' }}
+          TF_VAR_launchdarkly_sdk_key: ${{ secrets.LAUNCHDARKLY_SDK_KEY || '' }}
         run: terraform apply -auto-approve tfplan
 
       - name: Get Terraform Outputs
