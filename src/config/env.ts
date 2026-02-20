@@ -25,6 +25,13 @@ interface EnvConfig {
   ANALYTICS_BUCKET?: string;
   ATHENA_DATABASE?: string;
   ATHENA_RESULTS_BUCKET?: string;
+  // Stripe
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  // Sentry
+  SENTRY_DSN?: string;
+  // LaunchDarkly
+  LAUNCHDARKLY_SDK_KEY?: string;
 }
 
 // Validate required environment variables
@@ -59,6 +66,10 @@ function validateEnv(): EnvConfig {
     ANALYTICS_BUCKET: process.env.ANALYTICS_BUCKET,
     ATHENA_DATABASE: process.env.ATHENA_DATABASE,
     ATHENA_RESULTS_BUCKET: process.env.ATHENA_RESULTS_BUCKET,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+    SENTRY_DSN: process.env.SENTRY_DSN,
+    LAUNCHDARKLY_SDK_KEY: process.env.LAUNCHDARKLY_SDK_KEY,
   };
 }
 

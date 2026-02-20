@@ -61,9 +61,19 @@ jobs:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
           terraform_wrapper: false
 
+      - name: Set environment
+        id: env
+        run: echo "name=${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_OUTPUT
+
       - name: Terraform Init
         working-directory: ./terraform
-        run: terraform init
+        run: |
+          ENV="${{ steps.env.outputs.name }}"
+          if [ "$ENV" = "prod" ]; then
+            terraform init
+          else
+            terraform init -reconfigure -backend-config="key=database-service/${ENV}/terraform.tfstate"
+          fi
 
       - name: Terraform Validate
         working-directory: ./terraform
@@ -75,7 +85,7 @@ jobs:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
-          TF_VAR_domain_name: api.auctionspulse.com
+          TF_VAR_domain_name: ${{ (github.event.inputs.environment || 'dev') == 'prod' && 'api.auctionspulse.com' || format('api.{0}.auctionspulse.com', github.event.inputs.environment || 'dev') }}
           TF_VAR_hosted_zone_name: auctionspulse.com
         run: terraform plan -out=tfplan
 
@@ -85,7 +95,7 @@ jobs:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
-          TF_VAR_domain_name: api.auctionspulse.com
+          TF_VAR_domain_name: ${{ (github.event.inputs.environment || 'dev') == 'prod' && 'api.auctionspulse.com' || format('api.{0}.auctionspulse.com', github.event.inputs.environment || 'dev') }}
           TF_VAR_hosted_zone_name: auctionspulse.com
         run: terraform apply -auto-approve tfplan
 
