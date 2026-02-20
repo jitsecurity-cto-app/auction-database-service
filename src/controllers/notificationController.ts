@@ -13,40 +13,43 @@ const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const QUEUE_URL = process.env.NOTIFICATIONS_QUEUE_URL || '';
 const NOTIFICATIONS_TABLE = process.env.NOTIFICATIONS_TABLE || 'auction-lab-notifications-dev';
 
+// Timeout for DynamoDB calls (prevents Lambda hanging when no NAT Gateway/VPC Endpoint)
+const DYNAMO_TIMEOUT_MS = 3000;
+
 // ─── Event Publishing ───────────────────────────────────────────────────────
 
 // Push a notification event to SQS queue
 // No authentication on the queue message (intentional vulnerability: SQS message tampering)
-export async function publishNotificationEvent(event: {
+export function publishNotificationEvent(event: {
   type: string;
   user_id: string;
   title: string;
   message: string;
   metadata?: Record<string, any>;
-}): Promise<void> {
-  try {
-    // Log event details (intentional verbose logging)
-    console.log('Publishing notification event:', event);
+}): void {
+  // Log event details (intentional verbose logging)
+  console.log('Publishing notification event:', event);
 
-    if (!QUEUE_URL) {
-      console.warn('NOTIFICATIONS_QUEUE_URL not set, skipping SQS publish');
-      // Still store in DynamoDB for local development
-      await storeNotification(event);
-      return;
-    }
-
-    const command = new SendMessageCommand({
-      QueueUrl: QUEUE_URL,
-      MessageBody: JSON.stringify(event),
-      // No message deduplication (intentional — allows duplicate notifications)
-    });
-
-    await sqsClient.send(command);
-    console.log('Notification event published to SQS');
-  } catch (error) {
-    // Don't fail the parent operation if notification fails
-    console.error('Failed to publish notification event:', error);
+  if (!QUEUE_URL) {
+    console.warn('NOTIFICATIONS_QUEUE_URL not set, skipping SQS publish');
+    // Fire-and-forget: store in DynamoDB for local development
+    // DynamoDB is an outbound internet call that may hang in VPC without NAT Gateway
+    storeNotification(event)
+      .then(() => console.log('Notification stored in DynamoDB (fallback)'))
+      .catch(err => console.error('Failed to store notification in DynamoDB:', err));
+    return;
   }
+
+  const command = new SendMessageCommand({
+    QueueUrl: QUEUE_URL,
+    MessageBody: JSON.stringify(event),
+    // No message deduplication (intentional — allows duplicate notifications)
+  });
+
+  // Fire-and-forget: SQS is an outbound internet call that may hang in VPC without NAT Gateway
+  sqsClient.send(command)
+    .then(() => console.log('Notification event published to SQS'))
+    .catch(err => console.error('Failed to publish notification event:', err));
 }
 
 // Store notification directly in DynamoDB (used by worker or as fallback)
@@ -187,8 +190,19 @@ export async function getNotifications(req: AuthRequest, res: Response): Promise
       Limit: limit,
     });
 
-    const result = await docClient.send(command);
-    res.json(result.Items || []);
+    // Use AbortController timeout to prevent hanging when DynamoDB is unreachable
+    // (Lambda in VPC without NAT Gateway/VPC Endpoint cannot reach DynamoDB)
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), DYNAMO_TIMEOUT_MS);
+    try {
+      const result = await docClient.send(command, { abortSignal: abortController.signal });
+      clearTimeout(timeout);
+      res.json(result.Items || []);
+    } catch (dynamoError) {
+      clearTimeout(timeout);
+      console.warn('DynamoDB unreachable for getNotifications, returning empty list:', dynamoError);
+      res.json([]);
+    }
   } catch (error) {
     console.error('Get notifications error:', error);
     res.status(500).json({
@@ -222,7 +236,12 @@ export async function markNotificationRead(req: AuthRequest, res: Response): Pro
       ExpressionAttributeValues: { ':read': true },
     });
 
-    await docClient.send(command);
+    // Fire-and-forget: DynamoDB update is an outbound internet call that may hang
+    // in VPC without NAT Gateway/VPC Endpoint. Respond immediately.
+    docClient.send(command)
+      .then(() => console.log('Notification marked as read in DynamoDB'))
+      .catch(err => console.error('Failed to mark notification read in DynamoDB:', err));
+
     res.json({ message: 'Notification marked as read' });
   } catch (error) {
     console.error('Mark notification read error:', error);
@@ -255,8 +274,19 @@ export async function getUnreadCount(req: AuthRequest, res: Response): Promise<v
       Select: 'COUNT',
     });
 
-    const result = await docClient.send(command);
-    res.json({ count: result.Count || 0 });
+    // Use AbortController timeout to prevent hanging when DynamoDB is unreachable
+    // (Lambda in VPC without NAT Gateway/VPC Endpoint cannot reach DynamoDB)
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), DYNAMO_TIMEOUT_MS);
+    try {
+      const result = await docClient.send(command, { abortSignal: abortController.signal });
+      clearTimeout(timeout);
+      res.json({ count: result.Count || 0 });
+    } catch (dynamoError) {
+      clearTimeout(timeout);
+      console.warn('DynamoDB unreachable for getUnreadCount, returning 0:', dynamoError);
+      res.json({ count: 0 });
+    }
   } catch (error) {
     console.error('Get unread count error:', error);
     res.status(500).json({

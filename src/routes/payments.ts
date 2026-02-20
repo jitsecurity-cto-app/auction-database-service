@@ -5,6 +5,6 @@ import { requireFlag } from '../middleware/featureFlag';
 
 const router = Router();
 
-router.post('/create-intent', verifyToken, requireFlag('enable-stripe-checkout', false), createPaymentIntent);
+router.post('/create-intent', verifyToken, requireFlag('enable-stripe-checkout', true), createPaymentIntent);
 
 export default router;

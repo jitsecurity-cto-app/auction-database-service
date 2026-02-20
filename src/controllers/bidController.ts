@@ -173,8 +173,6 @@ export async function createBid(req: AuthRequest, res: Response): Promise<void> 
             title: 'You\'ve been outbid!',
             message: `Someone placed a higher bid of $${bidAmount} on "${auction.title}"`,
             metadata: { auction_id: id, bid_amount: bidAmount },
-          }).catch(notifError => {
-            console.error('Failed to send outbid notification:', notifError);
           });
         }
       }).catch(notifError => {
