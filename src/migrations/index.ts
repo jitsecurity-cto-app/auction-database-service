@@ -92,6 +92,10 @@ async function runMigrations(): Promise<void> {
         version: '008_audit_events',
         file: '008_audit_events.sql',
       },
+      {
+        version: '009_stripe_payment_intent',
+        file: '009_stripe_payment_intent.sql',
+      },
     ];
     
     for (const migration of migrations) {
