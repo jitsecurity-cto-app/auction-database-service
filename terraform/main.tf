@@ -318,10 +318,8 @@ resource "aws_lambda_function" "api" {
     }
   }
 
-  vpc_config {
-    subnet_ids         = data.aws_subnets.default.ids
-    security_group_ids = [aws_security_group.lambda.id]
-  }
+  # VPC config removed: RDS is publicly accessible and Lambda needs
+  # outbound internet for Stripe, LaunchDarkly, Sentry, SQS, DynamoDB
 
   tags = {
     Name = "${var.project_name}-api-${var.environment}"
