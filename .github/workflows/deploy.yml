@@ -69,7 +69,7 @@ jobs:
         working-directory: ./terraform
         run: |
           ENV="${{ steps.env.outputs.name }}"
-          if [ "$ENV" = "prod" ]; then
+          if [ "$ENV" = "dev" ]; then
             terraform init
           else
             terraform init -reconfigure -backend-config="key=database-service/${ENV}/terraform.tfstate"
