@@ -3,12 +3,14 @@ import { Request, Response } from 'express';
 
 // Mock stripe before importing controller
 const mockPaymentIntentsCreate = jest.fn<any>();
+const mockPaymentIntentsRetrieve = jest.fn<any>();
 const mockWebhooksConstructEvent = jest.fn<any>();
 
 jest.mock('stripe', () => {
   return jest.fn().mockImplementation(() => ({
     paymentIntents: {
       create: mockPaymentIntentsCreate,
+      retrieve: mockPaymentIntentsRetrieve,
     },
     webhooks: {
       constructEvent: mockWebhooksConstructEvent,
@@ -139,16 +141,20 @@ describe('Payment Controller', () => {
         }],
       });
 
-      // Mock no update needed
-      mockPaymentIntentsCreate.mockResolvedValueOnce({
+      mockPaymentIntentsRetrieve.mockResolvedValueOnce({
         id: 'pi_existing_123',
         client_secret: 'pi_existing_123_secret',
       });
 
       await createPaymentIntent(mockRequest as AuthRequest, mockResponse);
 
-      // Should not create a new intent
+      // Should retrieve existing, not create a new intent
       expect(mockPaymentIntentsCreate).not.toHaveBeenCalled();
+      expect(mockPaymentIntentsRetrieve).toHaveBeenCalledWith('pi_existing_123');
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        client_secret: 'pi_existing_123_secret',
+        payment_intent_id: 'pi_existing_123',
+      });
     });
   });
 

@@ -4,9 +4,19 @@ import { query } from '../config/database';
 import { AuthRequest } from '../middleware/auth';
 import { env } from '../config/env';
 
-const stripe = new Stripe(env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2026-01-28.clover',
-});
+let stripeClient: Stripe | null = null;
+
+function getStripe(): Stripe {
+  if (!stripeClient) {
+    if (!env.STRIPE_SECRET_KEY) {
+      throw new Error('STRIPE_SECRET_KEY is not configured');
+    }
+    stripeClient = new Stripe(env.STRIPE_SECRET_KEY, {
+      apiVersion: '2026-01-28.clover',
+    });
+  }
+  return stripeClient;
+}
 
 export async function createPaymentIntent(req: AuthRequest, res: Response): Promise<void> {
   try {
@@ -42,7 +52,7 @@ export async function createPaymentIntent(req: AuthRequest, res: Response): Prom
 
     // If order already has a payment intent, retrieve it and return the client_secret
     if (order.stripe_payment_intent_id) {
-      const existingIntent = await stripe.paymentIntents.retrieve(order.stripe_payment_intent_id);
+      const existingIntent = await getStripe().paymentIntents.retrieve(order.stripe_payment_intent_id);
       res.json({
         client_secret: existingIntent.client_secret,
         payment_intent_id: existingIntent.id,
@@ -51,7 +61,7 @@ export async function createPaymentIntent(req: AuthRequest, res: Response): Prom
     }
 
     // Create a new PaymentIntent
-    const paymentIntent = await stripe.paymentIntents.create({
+    const paymentIntent = await getStripe().paymentIntents.create({
       amount: Math.round(order.total_amount * 100), // Convert to cents
       currency: 'usd',
       metadata: {
@@ -83,7 +93,7 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
   let event: Stripe.Event;
 
   try {
-    event = stripe.webhooks.constructEvent(
+    event = getStripe().webhooks.constructEvent(
       req.body,
       sig,
       env.STRIPE_WEBHOOK_SECRET || ''
