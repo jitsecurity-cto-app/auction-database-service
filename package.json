@@ -41,7 +41,7 @@
     "@aws-sdk/client-sns": "^3.490.0",
     "@aws-sdk/client-sqs": "^3.490.0",
     "@aws-sdk/lib-dynamodb": "^3.490.0",
-    "@aws-sdk/s3-request-presigner": "^3.490.0",
+"fast-xml-parser": "^4.3.4",
     "@launchdarkly/node-server-sdk": "^9.10.6",
     "@sentry/node": "^10.39.0",
     "aws-serverless-express": "^3.4.0",
